@@ -1,0 +1,76 @@
+@import "tailwindcss";
+
+:root {
+  --primary-blue: #0A66C2;
+  --primary-hover: #004182;
+  --bg-canvas: #F3F4F6;
+  --card-bg: #FFFFFF;
+  --border-light: #E5E7EB;
+  --text-main: #0F172A;
+  --text-muted: #64748B;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--bg-canvas);
+  color: var(--text-main);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Glassmorphism elements */
+.glass-card {
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(229, 231, 235, 0.8);
+}
+
+.linkedin-btn-primary {
+  background-color: #0A66C2;
+  color: #ffffff;
+  font-weight: 600;
+  border-radius: 9999px;
+  padding: 0.5rem 1.25rem;
+  transition: all 0.15s ease-in-out;
+}
+.linkedin-btn-primary:hover {
+  background-color: #004182;
+  box-shadow: 0 2px 8px rgba(10, 102, 194, 0.25);
+}
+
+.linkedin-btn-outline {
+  border: 1.5px solid #0A66C2;
+  color: #0A66C2;
+  font-weight: 600;
+  border-radius: 9999px;
+  padding: 0.5rem 1.25rem;
+  transition: all 0.15s ease-in-out;
+}
+.linkedin-btn-outline:hover {
+  background-color: #E8F0FE;
+}
+
+.card-hover {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08);
+}
