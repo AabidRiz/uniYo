@@ -12,6 +12,7 @@ export default function Navbar({
 }) {
   const [invites, setInvites] = useState([]);
   const [advisorReqs, setAdvisorReqs] = useState([]);
+  const [notifications, setNotifications] = useState({ calendar: 0, questions: 0, projects: 0, invites: 0 });
   const [showBell, setShowBell] = useState(false);
 
   const load = async () => {
@@ -19,6 +20,7 @@ export default function Navbar({
     try {
       const invitesList = await api.getMyInvites(currentUser.id);
       setInvites(invitesList);
+      setNotifications(await api.getNotifications(currentUser.id));
       if (currentUser.role === 'professor') {
         const reqs = await api.getAdvisorRequests(currentUser.id);
         setAdvisorReqs(reqs);
@@ -60,6 +62,7 @@ export default function Navbar({
       { id: 'profile', label: 'Profile', icon: ShieldCheck }
     ];
     if (role === 'professor') return [
+      { id: 'feed', label: 'Home', icon: Home },
       { id: 'prof_dashboard', label: 'Dashboard', icon: Home },
       { id: 'prof_calendar', label: 'Office Hours', icon: Calendar },
       { id: 'prof_courses', label: 'Videos', icon: Video },
@@ -69,10 +72,11 @@ export default function Navbar({
       { id: 'profile', label: 'Profile', icon: ShieldCheck }
     ];
     if (role === 'business') return [
-      { id: 'business', label: 'Business', icon: Briefcase },
+      { id: 'feed', label: 'Home', icon: Home },
+      { id: 'business', label: 'Enterprise', icon: Briefcase },
       { id: 'profile', label: 'Profile', icon: ShieldCheck }
     ];
-    return [{ id: 'profile', label: 'Admin', icon: ShieldCheck }];
+    return [{ id: 'admin_dashboard', label: 'Control Center', icon: ShieldCheck }];
   };
 
   const tabs = getTabsForRole(currentRole);
@@ -83,7 +87,7 @@ export default function Navbar({
     admin: 'AI Verification Agent'
   };
 
-  const bellCount = invites.length + (currentRole === 'professor' ? advisorReqs.length : 0);
+  const bellCount = invites.length + (currentRole === 'professor' ? advisorReqs.length : 0) + notifications.calendar + notifications.questions;
 
   return (
     <header className="sticky top-0 z-40 bg-white border-b border-slate-200">
@@ -105,6 +109,7 @@ export default function Navbar({
                   }`}>
                   <Icon className="w-4 h-4" />
                   <span className="whitespace-nowrap">{tab.label}</span>
+                  {((tab.id === 'prof_calendar' && notifications.calendar > 0) || (tab.id === 'prof_questions' && notifications.questions > 0) || (tab.id === 'prof_advised' && notifications.projects > 0) || (tab.id === 'professors' && (notifications.calendar > 0 || notifications.questions > 0))) && <span className="w-2 h-2 rounded-full bg-red-500" />}
                 </button>
               );
             })}

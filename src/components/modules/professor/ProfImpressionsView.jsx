@@ -5,17 +5,20 @@ import { api } from '../../../api/client';
 export default function ProfImpressionsView({ currentUser }) {
   const [sessions, setSessions] = useState([]);
   const [videos, setVideos] = useState([]);
+  const [professorReviews, setProfessorReviews] = useState({ reviews: [], avgRating: 0, count: 0 });
   const [loading, setLoading] = useState(true);
 
   const load = async () => {
     setLoading(true);
     try {
-      const [s, v] = await Promise.all([
+      const [s, v, r] = await Promise.all([
         api.getSessions({ profId: currentUser.id }),
-        api.getProfessorVideos(currentUser.id)
+        api.getProfessorVideos(currentUser.id),
+        api.getProfessorReviews(currentUser.id)
       ]);
       setSessions(s);
       setVideos(v);
+      setProfessorReviews(r);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   };
@@ -34,7 +37,16 @@ export default function ProfImpressionsView({ currentUser }) {
     ? (allImpressions.filter(i => i.rating).reduce((s, i) => s + i.rating, 0) / allImpressions.filter(i => i.rating).length).toFixed(2)
     : '—';
 
-  const totalImpressions = ratedSessions.length + allImpressions.length;
+  const totalImpressions = ratedSessions.length + allImpressions.length + professorReviews.count;
+
+  const complain = async (targetType, targetId) => {
+    const reason = window.prompt('Why should admin review this content?');
+    if (!reason?.trim()) return;
+    try {
+      await api.submitComplaint({ reporterId: currentUser.id, targetType, targetId, reason });
+      alert('Complaint sent to admin for review.');
+    } catch (e) { alert(e.message); }
+  };
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
@@ -51,9 +63,31 @@ export default function ProfImpressionsView({ currentUser }) {
       ) : (
         <>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <StatCard label="Session Rating" value={avgSessionRating} hint={`${ratedSessions.length} session${ratedSessions.length === 1 ? '' : 's'} rated`} />
+            <StatCard label="Professor Rating" value={professorReviews.count ? professorReviews.avgRating.toFixed(2) : '—'} hint={`${professorReviews.count} general review${professorReviews.count === 1 ? '' : 's'}`} />
             <StatCard label="Video Rating" value={avgVideoRating} hint={`${allImpressions.length} impression${allImpressions.length === 1 ? '' : 's'}`} />
-            <StatCard label="Total Reviews" value={totalImpressions} hint="Sessions + Videos" />
+            <StatCard label="Total Reviews" value={totalImpressions} hint="Professor + Sessions + Videos" />
+          </div>
+
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs">
+            <h3 className="font-bold text-slate-900 text-sm mb-3 flex items-center">
+              <Star className="w-4 h-4 text-amber-500 fill-amber-400 mr-2" />Professor Reviews
+            </h3>
+            {professorReviews.reviews.filter(review => !review.sessionId).length === 0 ? (
+              <p className="text-xs text-slate-400 py-4">No student professor reviews yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {professorReviews.reviews.filter(review => !review.sessionId).map(review => (
+                  <div key={review.id} className="p-3 border border-slate-200 rounded-lg bg-slate-50">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-xs text-slate-900">{review.studentName}</span>
+                      <span className="text-amber-600 text-xs">{'★'.repeat(review.rating)}{'☆'.repeat(5 - review.rating)}</span>
+                    </div>
+                    <p className="text-xs text-slate-700 italic mt-1">"{review.comment}"</p>
+                    <button onClick={() => complain('professor_review', review.id)} className="mt-2 text-[10px] text-red-600 font-semibold">Report to admin</button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs">
@@ -74,6 +108,7 @@ export default function ProfImpressionsView({ currentUser }) {
                     </div>
                     {s.ratingComment && <p className="text-xs text-slate-700 italic mt-1">"{s.ratingComment}"</p>}
                     <p className="text-[10px] text-slate-400 mt-1">{s.topic} · {s.date}</p>
+                    {s.rating && <button onClick={() => complain('session_review', s.id)} className="mt-2 text-[10px] text-red-600 font-semibold">Report to admin</button>}
                   </div>
                 ))}
               </div>
@@ -100,6 +135,7 @@ export default function ProfImpressionsView({ currentUser }) {
                     </div>
                     <p className="text-[10px] text-slate-500 mt-0.5">on "{i.videoTitle}"</p>
                     {i.comment && <p className="text-xs text-slate-700 italic mt-1">"{i.comment}"</p>}
+                    {i.comment && <button onClick={() => complain('video_review', i.id)} className="mt-2 text-[10px] text-red-600 font-semibold">Report to admin</button>}
                   </div>
                 ))}
               </div>

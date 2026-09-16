@@ -5,6 +5,7 @@ import FeedView from './components/modules/FeedView';
 import CollaborateView from './components/modules/CollaborateView';
 import ProfessorsView from './components/modules/ProfessorsView';
 import BusinessView from './components/modules/BusinessView';
+import StudentJobsView from './components/modules/StudentJobsView';
 import NetworkView from './components/modules/NetworkView';
 import ProfileView from './components/modules/ProfileView';
 import AIAssistantDrawer from './components/ai/AIAssistantDrawer';
@@ -17,6 +18,7 @@ import ProfCoursesView from './components/modules/professor/ProfCoursesView';
 import ProfQuestionsView from './components/modules/professor/ProfQuestionsView';
 import ProfAdvisedProjectsView from './components/modules/professor/ProfAdvisedProjectsView';
 import ProfImpressionsView from './components/modules/professor/ProfImpressionsView';
+import AdminDashboardView from './components/modules/admin/AdminDashboardView';
 
 import { api } from './api/client';
 
@@ -73,9 +75,9 @@ export default function App() {
     if (!activeUser) return;
     const validTabs = {
       student: ['feed', 'collaborate', 'professors', 'business', 'network', 'profile'],
-      professor: ['prof_dashboard', 'prof_calendar', 'prof_courses', 'prof_questions', 'prof_advised', 'prof_impressions', 'collaborate', 'profile'],
-      business: ['business', 'profile'],
-      admin: ['profile']
+      professor: ['feed', 'prof_dashboard', 'prof_calendar', 'prof_courses', 'prof_questions', 'prof_advised', 'prof_impressions', 'collaborate', 'profile'],
+      business: ['feed', 'business', 'profile'],
+      admin: ['admin_dashboard']
     };
     const allowed = validTabs[activeUser.role] || ['feed'];
     if (!allowed.includes(activeTab)) {
@@ -110,7 +112,7 @@ export default function App() {
       userObj.role === 'student' ? 'feed'
       : userObj.role === 'professor' ? 'prof_dashboard'
       : userObj.role === 'business' ? 'business'
-      : 'profile';
+      : 'admin_dashboard';
     setActiveTab(firstTab);
     setViewUserId(null);
     await loadAll(userObj.id);
@@ -209,6 +211,34 @@ export default function App() {
                 onOpenUser={openUserProfile}
               />
             )}
+            {activeTab === 'feed' && activeUser?.role === 'professor' && (
+              <FeedView
+                currentUser={activeUser}
+                posts={posts}
+                users={users}
+                onAddPost={handleAddPost}
+                onDeletePost={handleDeletePost}
+                onLikePost={handleLikePost}
+                onAddComment={handleAddComment}
+                onDeleteComment={handleDeleteComment}
+                onNavigateTab={setActiveTab}
+                onOpenUser={openUserProfile}
+              />
+            )}
+            {activeTab === 'feed' && activeUser?.role === 'business' && (
+              <FeedView
+                currentUser={activeUser}
+                posts={posts}
+                users={users}
+                onAddPost={handleAddPost}
+                onDeletePost={handleDeletePost}
+                onLikePost={handleLikePost}
+                onAddComment={handleAddComment}
+                onDeleteComment={handleDeleteComment}
+                onNavigateTab={setActiveTab}
+                onOpenUser={openUserProfile}
+              />
+            )}
             {activeTab === 'collaborate' && (activeUser?.role === 'student' || activeUser?.role === 'professor') && (
               <CollaborateView
                 currentUser={activeUser}
@@ -223,7 +253,7 @@ export default function App() {
               <ProfessorsView currentUser={activeUser} onOpenUser={openUserProfile} />
             )}
             {activeTab === 'business' && activeUser?.role === 'student' && (
-              <BusinessView currentUser={activeUser} onOpenUser={openUserProfile} />
+              <StudentJobsView currentUser={activeUser} />
             )}
             {activeTab === 'network' && activeUser?.role === 'student' && (
               <NetworkView currentUser={activeUser} users={users} onOpenUser={openUserProfile} />
@@ -258,6 +288,10 @@ export default function App() {
             {/* BUSINESS */}
             {activeTab === 'business' && activeUser?.role === 'business' && (
               <BusinessView currentUser={activeUser} onOpenUser={openUserProfile} />
+            )}
+
+            {activeTab === 'admin_dashboard' && activeUser?.role === 'admin' && (
+              <AdminDashboardView />
             )}
 
             {/* SHARED */}

@@ -245,6 +245,17 @@ async function setupDatabase() {
   await db.query(`ALTER TABLE professor_sessions ADD COLUMN IF NOT EXISTS rating INT;`);
   await db.query(`ALTER TABLE professor_sessions ADD COLUMN IF NOT EXISTS rating_comment TEXT;`);
   await db.query(`ALTER TABLE professor_sessions ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;`);
+  await db.query(`ALTER TABLE professor_sessions ADD COLUMN IF NOT EXISTS meeting_link TEXT;`);
+  await db.query(`ALTER TABLE professor_sessions ADD COLUMN IF NOT EXISTS response_message TEXT;`);
+  await db.query(`ALTER TABLE professor_sessions ADD COLUMN IF NOT EXISTS rejection_reason TEXT;`);
+  await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS enterprise_profile JSONB;`);
+  await db.query(`ALTER TABLE internships ADD COLUMN IF NOT EXISTS owner_id VARCHAR(100) REFERENCES users(id) ON DELETE SET NULL;`);
+  for (const table of ['internships', 'project_messages', 'project_repos', 'project_docs', 'project_tasks', 'project_meetings', 'project_activity', 'investment_interests']) {
+    await db.query(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;`);
+  }
+  await db.query(`ALTER TABLE investment_interests ADD COLUMN IF NOT EXISTS investor_id VARCHAR(100);`);
+  await db.query(`ALTER TABLE investment_interests ADD COLUMN IF NOT EXISTS project_id VARCHAR(100);`);
+  await db.query(`ALTER TABLE investment_interests ADD COLUMN IF NOT EXISTS status VARCHAR(100) DEFAULT 'Pending';`);
 
   await db.query(`CREATE TABLE IF NOT EXISTS professor_availability (
     id VARCHAR(100) PRIMARY KEY, prof_id VARCHAR(100) REFERENCES users(id) ON DELETE CASCADE,
@@ -285,6 +296,15 @@ async function setupDatabase() {
     answered_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);`);
 
+  await db.query(`CREATE TABLE IF NOT EXISTS admin_complaints (
+    id VARCHAR(100) PRIMARY KEY,
+    reporter_id VARCHAR(100) REFERENCES users(id) ON DELETE CASCADE,
+    target_type VARCHAR(50) NOT NULL,
+    target_id VARCHAR(100) NOT NULL,
+    reason TEXT NOT NULL,
+    status VARCHAR(30) DEFAULT 'Pending',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);`);
+
   // Project advisors
   await db.query(`CREATE TABLE IF NOT EXISTS project_advisors (
     project_id VARCHAR(100) REFERENCES projects(id) ON DELETE CASCADE,
@@ -305,7 +325,7 @@ async function setupDatabase() {
   await db.query(`CREATE TABLE IF NOT EXISTS internship_applications (
     id VARCHAR(100) PRIMARY KEY, internship_id VARCHAR(100) REFERENCES internships(id) ON DELETE CASCADE,
     user_id VARCHAR(100), name VARCHAR(255), university VARCHAR(255),
-    gpa VARCHAR(50), status VARCHAR(50) DEFAULT 'Applied');`);
+    gpa VARCHAR(50), email VARCHAR(255), phone VARCHAR(100), degree VARCHAR(255), faculty VARCHAR(255), experience TEXT, cv_base64 TEXT, cv_name VARCHAR(255), status VARCHAR(50) DEFAULT 'Applied');`);
 
   await db.query(`CREATE TABLE IF NOT EXISTS investment_interests (
     id VARCHAR(100) PRIMARY KEY, project_id VARCHAR(100),
@@ -313,6 +333,10 @@ async function setupDatabase() {
     investor_id VARCHAR(100), investor_name VARCHAR(255),
     target_amount VARCHAR(100), status VARCHAR(100), ai_summary TEXT,
     meeting_slot VARCHAR(100), created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);`);
+  await db.query(`CREATE TABLE IF NOT EXISTS investment_meetings (
+    id VARCHAR(100) PRIMARY KEY, investment_id VARCHAR(100) REFERENCES investment_interests(id) ON DELETE CASCADE,
+    investor_id VARCHAR(100), student_id VARCHAR(100), date VARCHAR(100), time VARCHAR(100), link TEXT, message TEXT,
+    status VARCHAR(40) DEFAULT 'Proposed', change_request TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);`);
 
   await db.query(`CREATE TABLE IF NOT EXISTS verification_queue (
     id VARCHAR(100) PRIMARY KEY, user_id VARCHAR(100), name VARCHAR(255), email VARCHAR(255),

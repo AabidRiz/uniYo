@@ -29,6 +29,7 @@ export const api = {
   connectUser: (id, t) => request(`/users/${id}/connections`, { method: 'POST', body: { targetId: t } }),
   disconnectUser: (id, t) => request(`/users/${id}/connections/${t}`, { method: 'DELETE' }),
   getMyInvites: (id) => request(`/users/${id}/invites`),
+  getNotifications: (id) => request(`/notifications/${id}`),
 
   login: (c) => request('/auth/login', { method: 'POST', body: c }),
   registerUser: (d) => request('/auth/register', { method: 'POST', body: d }),
@@ -96,7 +97,7 @@ export const api = {
   },
   bookSession: (d) => request('/professors/sessions', { method: 'POST', body: d }),
   updateSession: (id, d) => request(`/professors/sessions/${id}`, { method: 'PUT', body: d }),
-  deleteSession: (id) => request(`/professors/sessions/${id}`, { method: 'DELETE' }),
+  deleteSession: (id, actorId) => request(`/professors/sessions/${id}`, { method: 'DELETE', body: { actorId } }),
 
   // Professor videos
   getProfessorVideos: (profId, viewerId) => request(`/professors/${profId}/videos${viewerId ? `?viewerId=${viewerId}` : ''}`),
@@ -109,28 +110,52 @@ export const api = {
   payForVideo: (vid, d) => request(`/professors/videos/${vid}/pay`, { method: 'POST', body: d }),
   getMyEnrollments: (studentId) => request(`/users/${studentId}/enrollments`),
   getProfessorReviews: (profId) => request(`/professors/${profId}/reviews`),
+  createProfessorReview: (profId, d) => request(`/professors/${profId}/reviews`, { method: 'POST', body: d }),
+  updateProfessorReview: (reviewId, d) => request(`/professors/reviews/${reviewId}`, { method: 'PUT', body: d }),
+  deleteProfessorReview: (reviewId, studentId) => request(`/professors/reviews/${reviewId}`, { method: 'DELETE', body: { studentId } }),
   reviewSession: (sessionId, d) => request(`/professors/sessions/${sessionId}/review`, { method: 'POST', body: d }),
+  deleteReview: (sessionId, studentId) => request(`/professors/sessions/${sessionId}/review`, { method: 'DELETE', body: { studentId } }),
+  submitComplaint: (d) => request('/admin/complaints', { method: 'POST', body: d }),
 
   // Professor Q&A
   getProfessorQuestions: (profId) => request(`/professors/${profId}/questions`),
   askProfessorQuestion: (profId, d) => request(`/professors/${profId}/questions`, { method: 'POST', body: d }),
   answerProfessorQuestion: (profId, qid, answer) => request(`/professors/${profId}/questions/${qid}`, { method: 'PUT', body: { answer } }),
   deleteProfessorQuestion: (profId, qid) => request(`/professors/${profId}/questions/${qid}`, { method: 'DELETE' }),
+  updateStudentQuestion: (qid, d) => request(`/professors/questions/${qid}`, { method: 'PUT', body: d }),
+  deleteStudentQuestion: (qid, studentId) => request(`/professors/questions/${qid}`, { method: 'DELETE', body: { studentId } }),
+  updateProfessorAnswer: (profId, qid, answer) => request(`/professors/${profId}/questions/${qid}/answer`, { method: 'PUT', body: { answer } }),
+  deleteProfessorAnswer: (profId, qid) => request(`/professors/${profId}/questions/${qid}/answer`, { method: 'DELETE' }),
 
   // Internships
-  getInternships: () => request('/internships'),
+  getInternships: (p = {}) => {
+    const qs = new URLSearchParams(p).toString();
+    return request(`/internships${qs ? '?' + qs : ''}`);
+  },
   createInternship: (d) => request('/internships', { method: 'POST', body: d }),
   updateInternship: (id, d) => request(`/internships/${id}`, { method: 'PUT', body: d }),
   deleteInternship: (id) => request(`/internships/${id}`, { method: 'DELETE' }),
   updateApplicantStatus: (jid, aid, s) => request(`/internships/${jid}/applicants/${aid}`, { method: 'PUT', body: { status: s } }),
+  applyToInternship: (jobId, d) => request(`/internships/${jobId}/apply`, { method: 'POST', body: d }),
 
   // Investments
   getInvestments: (investorId) => request(investorId ? `/investments?investorId=${investorId}` : '/investments'),
+  getStudentInvestments: (studentId) => request(`/investments?studentId=${studentId}`),
   createInvestment: (d) => request('/investments', { method: 'POST', body: d }),
   updateInvestment: (id, d) => request(`/investments/${id}`, { method: 'PUT', body: d }),
   deleteInvestment: (id) => request(`/investments/${id}`, { method: 'DELETE' }),
+  getInvestmentMeetings: (id) => request(`/investments/${id}/meetings`),
+  createInvestmentMeeting: (id, d) => request(`/investments/${id}/meetings`, { method: 'POST', body: d }),
+  updateInvestmentMeeting: (id, d) => request(`/investment-meetings/${id}`, { method: 'PUT', body: d }),
 
   // Admin
   getVerificationQueue: () => request('/admin/verification-queue'),
   verifyStudent: (id, action) => request(`/admin/verify/${id}`, { method: 'POST', body: { action } })
+  ,getAdminQueue: () => request('/admin/verification-queue')
+  ,verifyUser: (id, action) => request(`/admin/verify-user/${id}`, { method: 'POST', body: { action } })
+  ,getAdminInvestments: () => request('/admin/investments')
+  ,moderateInvestment: (id, action) => request(`/admin/investments/${id}`, { method: 'PUT', body: { action } })
+  ,getAdminContent: () => request('/admin/content')
+  ,deleteAdminContent: (type, id) => request(`/admin/content/${type}/${id}`, { method: 'DELETE' })
+  ,moderateComplaint: (id, action) => request(`/admin/complaints/${id}`, { method: 'PUT', body: { action } })
 };

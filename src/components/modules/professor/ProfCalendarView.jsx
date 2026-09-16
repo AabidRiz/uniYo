@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Clock, CheckCircle2, Trash2, Plus, X } from 'lucide-react';
+import { Calendar, Clock, CheckCircle2, Trash2, Plus, X, Check, XCircle, Save, Video, Edit3 } from 'lucide-react';
 import { api } from '../../../api/client';
 
 export default function ProfCalendarView({ currentUser }) {
@@ -9,6 +9,9 @@ export default function ProfCalendarView({ currentUser }) {
   const [showAvailability, setShowAvailability] = useState(false);
   const [slot, setSlot] = useState({ day: 'Monday', time: '' });
   const [savingSlot, setSavingSlot] = useState(false);
+  const [responses, setResponses] = useState({});
+  const [editingId, setEditingId] = useState(null);
+  const [editDraft, setEditDraft] = useState({ date: '', time: '', topic: '' });
 
   useEffect(() => {
     loadSessions();
@@ -64,11 +67,43 @@ export default function ProfCalendarView({ currentUser }) {
   const handleCancelSession = async (id) => {
     if (!window.confirm('Cancel and delete this session booking from PostgreSQL?')) return;
     try {
-      await api.deleteSession(id);
+      await api.deleteSession(id, currentUser.id);
       setSessions(sessions.filter(s => s.id !== id));
     } catch (err) {
       console.error(err);
     }
+  };
+
+  const respondToSession = async (session, status) => {
+    const response = responses[session.id] || {};
+    if (status === 'Approved' && !response.meetingLink?.trim()) {
+      alert('Add a meeting link before approving this booking.');
+      return;
+    }
+    if (status === 'Rejected' && !response.rejectionReason?.trim()) {
+      alert('Add a rejection reason before rejecting this booking.');
+      return;
+    }
+    try {
+      await api.updateSession(session.id, {
+        actorId: currentUser.id,
+        status,
+        meetingLink: response.meetingLink?.trim(),
+        responseMessage: response.responseMessage?.trim(),
+        rejectionReason: response.rejectionReason?.trim()
+      });
+      await loadSessions();
+    } catch (err) { alert(err.message); }
+  };
+
+  const setResponse = (id, field, value) => setResponses(prev => ({ ...prev, [id]: { ...prev[id], [field]: value } }));
+
+  const saveSession = async (session) => {
+    try {
+      await api.updateSession(session.id, { actorId: currentUser.id, ...editDraft });
+      setEditingId(null);
+      await loadSessions();
+    } catch (err) { alert(err.message); }
   };
 
   return (
@@ -134,14 +169,23 @@ export default function ProfCalendarView({ currentUser }) {
                     <span className="text-[10px] bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded font-semibold">{s.type}</span>
                     <span className="text-xs font-semibold text-slate-500">({s.university})</span>
                   </div>
-                  <p className="text-xs text-slate-700 mt-1">Topic: <span className="italic font-medium">{s.topic}</span></p>
-                  <p className="text-[11px] text-slate-400 mt-0.5">📅 Date: {s.date} • Time: {s.time}</p>
+                  {editingId === s.id ? <div className="mt-2 flex flex-wrap gap-2"><input value={editDraft.date} onChange={e => setEditDraft({ ...editDraft, date: e.target.value })} className="border rounded px-2 py-1 text-xs" /><input value={editDraft.time} onChange={e => setEditDraft({ ...editDraft, time: e.target.value })} className="border rounded px-2 py-1 text-xs" /><input value={editDraft.topic} onChange={e => setEditDraft({ ...editDraft, topic: e.target.value })} className="border rounded px-2 py-1 text-xs" /><button onClick={() => saveSession(s)} className="text-blue-600 text-xs font-semibold flex items-center"><Save className="w-3 h-3 mr-1" />Save</button><button onClick={() => setEditingId(null)} className="text-slate-500 text-xs">Cancel</button></div> : <><p className="text-xs text-slate-700 mt-1">Topic: <span className="italic font-medium">{s.topic}</span></p><p className="text-[11px] text-slate-400 mt-0.5">Date: {s.date} • Time: {s.time}</p></>}
+                  {s.meetingLink && <a href={s.meetingLink} target="_blank" rel="noreferrer" className="text-[11px] text-blue-600 mt-1 inline-flex items-center"><Video className="w-3 h-3 mr-1" />Join meeting</a>}
+                  {s.responseMessage && <p className="text-[11px] text-slate-600 mt-1">Reply: {s.responseMessage}</p>}
+                  {s.rejectionReason && <p className="text-[11px] text-red-600 mt-1">Reason: {s.rejectionReason}</p>}
                 </div>
 
                 <div className="flex items-center space-x-2">
-                  <span className="px-3 py-1 bg-emerald-100 text-emerald-800 text-xs font-bold rounded-full flex items-center">
-                    <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> {s.status}
+                  <span className={`px-3 py-1 text-xs font-bold rounded-full flex items-center ${s.status === 'Pending' ? 'bg-amber-100 text-amber-800' : s.status === 'Rejected' ? 'bg-red-100 text-red-800' : 'bg-emerald-100 text-emerald-800'}`}>
+                    {s.status === 'Pending' ? <Clock className="w-3.5 h-3.5 mr-1" /> : <CheckCircle2 className="w-3.5 h-3.5 mr-1" />} {s.status}
                   </span>
+                  <button
+                    onClick={() => { setEditingId(s.id); setEditDraft({ date: s.date || '', time: s.time || '', topic: s.topic || '' }); }}
+                    className="p-1.5 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg"
+                    title="Edit booking"
+                  >
+                    <Edit3 className="w-4 h-4" />
+                  </button>
                   <button
                     onClick={() => handleCancelSession(s.id)}
                     className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
@@ -150,6 +194,17 @@ export default function ProfCalendarView({ currentUser }) {
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
+                {s.status === 'Pending' && (
+                  <div className="w-full border-t border-indigo-100 pt-3 grid grid-cols-1 md:grid-cols-3 gap-2">
+                    <input placeholder="Meeting link (required to approve)" value={responses[s.id]?.meetingLink || ''} onChange={e => setResponse(s.id, 'meetingLink', e.target.value)} className="border rounded-lg px-2 py-1.5 text-xs" />
+                    <input placeholder="Reply to student" value={responses[s.id]?.responseMessage || ''} onChange={e => setResponse(s.id, 'responseMessage', e.target.value)} className="border rounded-lg px-2 py-1.5 text-xs" />
+                    <input placeholder="Rejection reason" value={responses[s.id]?.rejectionReason || ''} onChange={e => setResponse(s.id, 'rejectionReason', e.target.value)} className="border rounded-lg px-2 py-1.5 text-xs" />
+                    <div className="md:col-span-3 flex justify-end gap-2">
+                      <button onClick={() => respondToSession(s, 'Rejected')} className="px-3 py-1.5 rounded-lg bg-red-100 text-red-700 text-xs font-bold flex items-center"><XCircle className="w-3.5 h-3.5 mr-1" />Reject</button>
+                      <button onClick={() => respondToSession(s, 'Approved')} className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-bold flex items-center"><Check className="w-3.5 h-3.5 mr-1" />Approve & send link</button>
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
           </div>

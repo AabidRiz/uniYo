@@ -1,0 +1,10 @@
+﻿{
+  "userId": "usr_student_1789541568246",
+  "name": "Test",
+  "email": "t@t.com",
+  "phone": "077",
+  "degree": "BSc",
+  "experience": "x",
+  "cvBase64": "data:application/pdf;base64,JVBERi0=",
+  "cvName": "test.pdf"
+}

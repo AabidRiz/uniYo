@@ -6,6 +6,7 @@ import {
   ListChecks, Clock, Target, Check, Edit3, GraduationCap, Award
 } from 'lucide-react';
 import { api } from '../../api/client';
+import InvestmentMeetingPanel from '../common/InvestmentMeetingPanel';
 
 const STATUSES = ['todo', 'in_progress', 'review', 'done'];
 const PRIORITIES = ['low', 'medium', 'high', 'urgent'];
@@ -45,6 +46,7 @@ export default function CollaborateView({ currentUser, projects, onCreateProject
   const [repoDraft, setRepoDraft] = useState({ name: '', url: '' });
   const [docDraft, setDocDraft] = useState({ title: '', size: '', url: '' });
   const [joinPitch, setJoinPitch] = useState('');
+  const [investmentRequests, setInvestmentRequests] = useState([]);
 
   // Advisor picker
   const [advisorPickerOpen, setAdvisorPickerOpen] = useState(false);
@@ -56,7 +58,8 @@ export default function CollaborateView({ currentUser, projects, onCreateProject
   useEffect(() => {
     api.getUniversities().then(setUniversities).catch(console.error);
     api.getProfessors().then(setProfessors).catch(console.error);
-  }, []);
+    if (currentUser.role === 'student') api.getStudentInvestments(currentUser.id).then(setInvestmentRequests).catch(console.error);
+  }, [currentUser.id, currentUser.role]);
 
   useEffect(() => {
     if (projects.length && !selectedId) setSelectedId(projects[0].id);
@@ -327,6 +330,38 @@ export default function CollaborateView({ currentUser, projects, onCreateProject
           <Plus className="w-4 h-4 mr-1.5" />New Project
         </button>
       </div>
+
+      {currentUser.role === 'student' && investmentRequests.length > 0 && (
+        <div className="mb-6 bg-amber-50 border border-amber-200 rounded-2xl p-5">
+          <h3 className="font-bold text-amber-900 text-sm">Investor activity on your projects</h3>
+          <p className="text-xs text-amber-800 mt-1">Review pitch requests and schedule meetings with interested investors.</p>
+          <div className="mt-3 space-y-3">
+            {investmentRequests.map(request => (
+              <div key={request.id} className="bg-white border border-amber-100 rounded-lg p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <b className="text-xs text-slate-900">{request.projectTitle}</b>
+                    <p className="text-[11px] text-slate-500 mt-1">{request.investorName} · {request.status}</p>
+                    {request.meetingSlot && <p className="text-[11px] text-blue-600 mt-1">Requested slot: {request.meetingSlot}</p>}
+                  </div>
+                  <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${
+                    request.status === 'Approved' ? 'bg-emerald-100 text-emerald-800'
+                    : request.status === 'Passed' ? 'bg-red-100 text-red-800'
+                    : 'bg-amber-100 text-amber-800'
+                  }`}>{request.status}</span>
+                </div>
+                {request.status === 'Approved' && (
+                  <InvestmentMeetingPanel
+                    investment={request}
+                    currentUser={currentUser}
+                    role="student"
+                  />
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         <div className="lg:col-span-4 space-y-4">

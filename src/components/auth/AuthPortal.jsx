@@ -28,7 +28,10 @@ export default function AuthPortal({ onAuthenticate }) {
     name: '', email: '', password: '', confirmPassword: '',
     university: '', studentId: '', faculty: '', degree: '',
     company: '', industry: '', title: '',
-    bio: '', skills: '', avatarBase64: '', idCardBase64: ''
+    bio: '', skills: '', avatarBase64: '', idCardBase64: '',
+    tradingName: '', companyType: 'Private Ltd', country: 'Sri Lanka', address: '', website: '', linkedin: '',
+    brn: '', tin: '', yearsOperating: '', aumBracket: '', chequeMin: '', chequeMax: '', thesisSectors: '', stage: 'Pre-seed', geography: 'Sri Lanka only', mandate: 'Equity', boardSeats: false,
+    businessCertificate: '', taxCertificate: '', bankProof: '', directorId: '', declaration: false
   });
   const [formError, setFormError] = useState('');
   const [result, setResult] = useState(null);
@@ -91,6 +94,7 @@ export default function AuthPortal({ onAuthenticate }) {
       if (role === 'business') {
         if (!form.company.trim()) return 'Company name is required.';
         if (!form.industry.trim()) return 'Industry is required.';
+        if (!form.brn.trim() || !form.tin.trim()) return 'Business registration and tax numbers are required.';
       }
       return true;
     }
@@ -102,6 +106,10 @@ export default function AuthPortal({ onAuthenticate }) {
 
   const submit = async () => {
     setFormError('');
+    if (role === 'business' && !form.declaration) {
+      setFormError('Please confirm that you are authorized to represent this entity.');
+      return;
+    }
     setSubmitting(true);
     try {
       const created = await api.registerUser({
@@ -120,6 +128,14 @@ export default function AuthPortal({ onAuthenticate }) {
         skills: form.skills || null,
         avatarBase64: form.avatarBase64 || null,
         idCardBase64: form.idCardBase64 || null
+        , enterpriseProfile: role === 'business' ? {
+          tradingName: form.tradingName, companyType: form.companyType, country: form.country, address: form.address,
+          website: form.website, linkedin: form.linkedin, brn: form.brn, tin: form.tin,
+          yearsOperating: form.yearsOperating, aumBracket: form.aumBracket, chequeMin: form.chequeMin, chequeMax: form.chequeMax,
+          thesisSectors: form.thesisSectors, stage: form.stage, geography: form.geography, mandate: form.mandate, boardSeats: form.boardSeats,
+          businessCertificate: form.businessCertificate, taxCertificate: form.taxCertificate, bankProof: form.bankProof, directorId: form.directorId,
+          declaration: form.declaration
+        } : null
       });
       setResult(created);
       setStep(4);
@@ -323,8 +339,13 @@ export default function AuthPortal({ onAuthenticate }) {
                     <>
                       <input type="text" placeholder="Company *" value={form.company} onChange={e => setForm({ ...form, company: e.target.value })}
                         className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500" />
+                      <input type="text" placeholder="Trading / brand name" value={form.tradingName} onChange={e => setForm({ ...form, tradingName: e.target.value })} className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white" />
+                      <select value={form.companyType} onChange={e => setForm({ ...form, companyType: e.target.value })} className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white"><option>Private Ltd</option><option>PLC</option><option>LLP</option><option>Sole Proprietor</option><option>Foreign entity</option></select>
+                      <input type="text" placeholder="Registered address" value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white" />
+                      <input type="url" placeholder="Company website" value={form.website} onChange={e => setForm({ ...form, website: e.target.value })} className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white" />
                       <input type="text" placeholder="Industry *" value={form.industry} onChange={e => setForm({ ...form, industry: e.target.value })}
                         className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500" />
+                      <div className="grid grid-cols-2 gap-3"><input placeholder="BRN *" value={form.brn} onChange={e => setForm({ ...form, brn: e.target.value })} className="px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white" /><input placeholder="TIN / VAT / GST *" value={form.tin} onChange={e => setForm({ ...form, tin: e.target.value })} className="px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white" /></div>
                       <input type="text" placeholder="Title (e.g. Managing Director)" value={form.title}
                         onChange={e => setForm({ ...form, title: e.target.value })}
                         className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500" />
@@ -352,6 +373,7 @@ export default function AuthPortal({ onAuthenticate }) {
                       className="text-xs text-slate-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-blue-600 file:text-white" />
                     {form.avatarBase64 && <img src={form.avatarBase64} alt="Avatar" className="mt-3 w-14 h-14 rounded-full border border-blue-500 object-cover" />}
                   </div>
+                  {role === 'business' && <div className="space-y-3 border border-slate-800 rounded-xl p-3"><p className="text-xs font-bold text-blue-300">Investment thesis</p><input placeholder="Sectors: AI/ML, Climate, SaaS…" value={form.thesisSectors} onChange={e => setForm({ ...form, thesisSectors: e.target.value })} className="w-full px-3 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white" /><div className="grid grid-cols-2 gap-3"><select value={form.stage} onChange={e => setForm({ ...form, stage: e.target.value })} className="px-3 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white"><option>Pre-seed</option><option>Seed</option><option>Series A</option><option>Series B+</option><option>Growth</option></select><select value={form.geography} onChange={e => setForm({ ...form, geography: e.target.value })} className="px-3 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white"><option>Sri Lanka only</option><option>South Asia</option><option>Global</option></select></div><input placeholder="Typical cheque range (LKR)" value={form.chequeMin} onChange={e => setForm({ ...form, chequeMin: e.target.value })} className="w-full px-3 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white" /><label className="text-xs text-slate-300 flex gap-2"><input type="checkbox" checked={form.declaration} onChange={e => setForm({ ...form, declaration: e.target.checked })} /> I am authorized to act on behalf of this entity</label></div>}
                   <div>
                     <label className="block text-xs font-semibold text-slate-300 mb-1">Bio</label>
                     <textarea rows={3} value={form.bio} onChange={e => setForm({ ...form, bio: e.target.value })}
@@ -388,7 +410,9 @@ export default function AuthPortal({ onAuthenticate }) {
                   <p className="text-xs text-slate-400">
                     {result.verified
                       ? result.verificationReason
-                      : 'Your student ID card is being reviewed. Expected approval within 1–3 hours.'}
+                      : role === 'business'
+                        ? 'Your enterprise documents are being reviewed. Expected approval within 24–48 hours.'
+                        : 'Your student ID card is being reviewed. Expected approval within 1–3 hours.'}
                   </p>
                   <button onClick={finish} className="linkedin-btn-primary py-3 px-6 text-xs font-bold w-full">
                     Enter Workspace

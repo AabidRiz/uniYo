@@ -25,23 +25,29 @@ export default function ProfessorsView({ currentUser }) {
   const [question, setQuestion] = useState('');
   const [reviewing, setReviewing] = useState(null);
   const [reviewForm, setReviewForm] = useState({ rating: 5, comment: '' });
+  const [activeSection, setActiveSection] = useState('learning');
+  const [questions, setQuestions] = useState([]);
+  const [editingQuestion, setEditingQuestion] = useState(null);
+  const [questionDraft, setQuestionDraft] = useState('');
 
   const loadProfessor = async (id) => {
     if (!id) return;
     setBusy('profile');
     try {
-      const [p, v, a, r, s] = await Promise.all([
+      const [p, v, a, r, s, q] = await Promise.all([
         api.getProfessor(id),
         api.getProfessorVideos(id, currentUser.id),
         api.getAvailability(id),
         api.getProfessorReviews(id),
-        api.getSessions({ studentId: currentUser.id })
+        api.getSessions({ studentId: currentUser.id }),
+        api.getProfessorQuestions(id)
       ]);
       setProfessor(p);
       setVideos(v);
       setAvailability(a);
       setReviews(r);
       setSessions(s.filter(session => session.profId === id));
+      setQuestions(q);
     } catch (err) {
       alert(err.message);
     } finally {
@@ -120,11 +126,49 @@ export default function ProfessorsView({ currentUser }) {
     event.preventDefault();
     setBusy(reviewing.id);
     try {
-      await api.reviewSession(reviewing.id, { studentId: currentUser.id, ...reviewForm });
+      if (reviewing.general) {
+        if (reviewing.id) await api.updateProfessorReview(reviewing.id, { studentId: currentUser.id, ...reviewForm });
+        else await api.createProfessorReview(selectedId, { studentId: currentUser.id, ...reviewForm });
+      } else {
+        await api.reviewSession(reviewing.id, { studentId: currentUser.id, ...reviewForm });
+      }
       setReviewing(null);
       await loadProfessor(selectedId);
     } catch (err) { alert(err.message); }
     finally { setBusy(''); }
+  };
+
+  const deleteGeneralReview = async (reviewId) => {
+    if (!window.confirm('Delete your professor review?')) return;
+    try {
+      await api.deleteProfessorReview(reviewId, currentUser.id);
+      await loadProfessor(selectedId);
+    } catch (err) { alert(err.message); }
+  };
+
+  const deleteReview = async (sessionId) => {
+    if (!window.confirm('Delete your review?')) return;
+    try {
+      await api.deleteReview(sessionId, currentUser.id);
+      await loadProfessor(selectedId);
+    } catch (err) { alert(err.message); }
+  };
+
+  const saveQuestion = async (questionId) => {
+    if (!questionDraft.trim()) return;
+    try {
+      await api.updateStudentQuestion(questionId, { studentId: currentUser.id, question: questionDraft.trim() });
+      setEditingQuestion(null);
+      await loadProfessor(selectedId);
+    } catch (err) { alert(err.message); }
+  };
+
+  const deleteQuestion = async (questionId) => {
+    if (!window.confirm('Delete this question?')) return;
+    try {
+      await api.deleteStudentQuestion(questionId, currentUser.id);
+      await loadProfessor(selectedId);
+    } catch (err) { alert(err.message); }
   };
 
   const filtered = professors.filter(p =>
@@ -162,16 +206,23 @@ export default function ProfessorsView({ currentUser }) {
             <button onClick={() => setBooking(true)} className="linkedin-btn-primary h-fit py-2 px-4 text-xs flex items-center justify-center"><Calendar className="w-4 h-4 mr-1.5" />Book consultation</button>
           </section>
 
-          <section className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs"><div className="flex items-center justify-between mb-4"><h3 className="font-bold text-sm text-slate-900">Teaching videos & mini-courses</h3><span className="text-[10px] text-slate-400">{videos.length} available</span></div>{videos.length === 0 ? <p className="text-xs text-slate-400 py-8 text-center">This professor has not published videos yet.</p> : <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{videos.map(video => <VideoCard key={video.id} video={video} busy={busy === video.id} onEnroll={() => video.price > 0 ? setPaymentVideo(video) : enrollFree(video)} onWatch={() => { api.recordVideoView(video.id); window.open(video.videoUrl, '_blank', 'noopener,noreferrer'); }} />)}</div>}</section>
+          <div className="flex items-center gap-2 border-b border-slate-200">
+            <button onClick={() => setActiveSection('learning')} className={`px-4 py-2 text-xs font-bold border-b-2 ${activeSection === 'learning' ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-500'}`}>Learning & consultations</button>
+            <button onClick={() => setActiveSection('reviews')} className={`px-4 py-2 text-xs font-bold border-b-2 ${activeSection === 'reviews' ? 'border-amber-500 text-amber-700' : 'border-transparent text-slate-500'}`}>Reviews ({reviews.count})</button>
+          </div>
+
+          {activeSection === 'learning' && <><section className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs"><div className="flex items-center justify-between mb-4"><h3 className="font-bold text-sm text-slate-900">Teaching videos & mini-courses</h3><span className="text-[10px] text-slate-400">{videos.length} available</span></div>{videos.length === 0 ? <p className="text-xs text-slate-400 py-8 text-center">This professor has not published videos yet.</p> : <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{videos.map(video => <VideoCard key={video.id} video={video} busy={busy === video.id} onEnroll={() => video.price > 0 ? setPaymentVideo(video) : enrollFree(video)} onWatch={() => { api.recordVideoView(video.id); window.open(video.videoUrl, '_blank', 'noopener,noreferrer'); }} />)}</div>}</section>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <section className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs"><h3 className="font-bold text-sm text-slate-900 mb-3 flex items-center"><Clock className="w-4 h-4 mr-2 text-indigo-600" />Available consultation slots</h3>{availability.length === 0 ? <p className="text-xs text-slate-400">No public slots configured.</p> : <div className="space-y-2">{availability.map(slot => <button key={slot.id} onClick={() => { setBooking(true); setBookingForm({ date: '', time: slot.time, topic: '' }); }} className="w-full text-left p-3 rounded-lg border border-indigo-100 bg-indigo-50/40 text-xs hover:bg-indigo-100"><b>{slot.day}</b><span className="ml-2 text-slate-600">{slot.time}</span></button>)}</div>}</section>
             <section className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs"><h3 className="font-bold text-sm text-slate-900 mb-3 flex items-center"><MessageSquare className="w-4 h-4 mr-2 text-amber-600" />Ask a professor</h3><form onSubmit={askQuestion}><textarea value={question} onChange={e => setQuestion(e.target.value)} rows={3} placeholder="Ask about a course, thesis, or subject…" className="w-full border border-slate-200 rounded-lg p-3 text-xs resize-none" /><button disabled={busy === 'question'} className="mt-2 linkedin-btn-primary py-2 px-4 text-xs">{busy === 'question' ? 'Sending…' : 'Send question'}</button></form></section>
-          </div>
+          </div></>}
 
-          <section className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs"><h3 className="font-bold text-sm text-slate-900 mb-3 flex items-center"><Star className="w-4 h-4 mr-2 text-amber-500 fill-amber-400" />Student reviews ({reviews.count})</h3>{reviews.reviews.length === 0 ? <p className="text-xs text-slate-400">No reviews yet. Complete a session to leave the first review.</p> : <div className="space-y-3">{reviews.reviews.map(review => <div key={review.id} className="p-3 bg-slate-50 rounded-lg"><div className="flex justify-between text-xs"><b>{review.studentName}</b><span className="text-amber-600">{'★'.repeat(review.rating)}{'☆'.repeat(5 - review.rating)}</span></div><p className="text-xs text-slate-600 mt-1">{review.comment}</p></div>)}</div>}</section>
+          {activeSection === 'reviews' && <section className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs"><div className="flex items-center justify-between mb-3"><h3 className="font-bold text-sm text-slate-900 flex items-center"><Star className="w-4 h-4 mr-2 text-amber-500 fill-amber-400" />Reviews for {professor.name} ({reviews.count})</h3>{(() => { const mine = reviews.reviews.find(review => review.studentId === currentUser.id && !review.sessionId); return <button onClick={() => { setReviewing({ general: true, id: mine?.id }); setReviewForm({ rating: mine?.rating || 5, comment: mine?.comment || '' }); }} className="linkedin-btn-primary px-3 py-1.5 text-xs">{mine ? 'Edit your review' : 'Write a review'}</button>; })()}</div>{reviews.reviews.length === 0 ? <p className="text-xs text-slate-400">No reviews yet. Be the first to review this professor.</p> : <div className="space-y-3">{reviews.reviews.map(review => <div key={review.id} className="p-3 bg-slate-50 rounded-lg"><div className="flex justify-between text-xs"><b>{review.studentName}</b><span className="text-amber-600">{'★'.repeat(review.rating)}{'☆'.repeat(5 - review.rating)}</span></div><p className="text-xs text-slate-600 mt-1">{review.comment}</p>{review.studentId === currentUser.id && !review.sessionId && <button onClick={() => deleteGeneralReview(review.id)} className="mt-2 text-[10px] text-red-600 font-semibold">Delete your review</button>}</div>)}</div>}</section>}
 
-          {sessions.length > 0 && <section className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs"><h3 className="font-bold text-sm text-slate-900 mb-3">Your sessions</h3><div className="space-y-2">{sessions.map(session => <div key={session.id} className="p-3 border rounded-lg flex items-center justify-between text-xs"><span><b>{session.date} · {session.time}</b><span className="block text-slate-500">{session.topic || 'Consultation'} · {session.status}</span></span>{session.status === 'Completed' && <button onClick={() => { setReviewing(session); setReviewForm({ rating: session.rating || 5, comment: session.ratingComment || '' }); }} className="text-amber-600 font-bold">Rate session</button>}</div>)}</div></section>}
+          {sessions.length > 0 && <section className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs"><h3 className="font-bold text-sm text-slate-900 mb-3">Your sessions</h3><div className="space-y-2">{sessions.map(session => <div key={session.id} className="p-3 border rounded-lg flex items-center justify-between text-xs"><span><b>{session.date} · {session.time}</b><span className="block text-slate-500">{session.topic || 'Consultation'} · {session.status}</span>{session.meetingLink && <a href={session.meetingLink} target="_blank" rel="noreferrer" className="block text-blue-600 mt-1">Join meeting</a>}{session.responseMessage && <span className="block text-slate-600 mt-1">{session.responseMessage}</span>}{session.rejectionReason && <span className="block text-red-600 mt-1">Rejected: {session.rejectionReason}</span>}</span>{session.status === 'Completed' && <span className="flex gap-2"><button onClick={() => { setReviewing(session); setReviewForm({ rating: session.rating || 5, comment: session.ratingComment || '' }); }} className="text-amber-600 font-bold">{session.rating ? 'Edit review' : 'Rate session'}</button>{session.rating && <button onClick={() => deleteReview(session.id)} className="text-red-600 font-bold">Delete</button>}</span>}</div>)}</div></section>}
+
+          {questions.length > 0 && <section className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs"><h3 className="font-bold text-sm text-slate-900 mb-3">Your questions</h3><div className="space-y-3">{questions.filter(q => q.studentId === currentUser.id).map(q => <div key={q.id} className="p-3 border rounded-lg"><div className="flex justify-between gap-3">{editingQuestion === q.id ? <textarea value={questionDraft} onChange={e => setQuestionDraft(e.target.value)} className="flex-1 border rounded p-2 text-xs" /> : <p className="text-xs text-slate-800 flex-1">{q.question}</p>}<span className="flex gap-1">{editingQuestion === q.id ? <button onClick={() => saveQuestion(q.id)} className="text-blue-600 text-xs">Save</button> : <button onClick={() => { setEditingQuestion(q.id); setQuestionDraft(q.question); }} className="text-blue-600 text-xs">Edit</button>}<button onClick={() => deleteQuestion(q.id)} className="text-red-600 text-xs">Delete</button></span></div>{q.answer && <p className="mt-2 bg-emerald-50 p-2 text-xs text-emerald-800">{q.answer}</p>}</div>)}</div></section>}
         </div>}
       </div>
 
@@ -179,7 +230,7 @@ export default function ProfessorsView({ currentUser }) {
 
       {paymentVideo && <Modal title="Mock payment gateway" onClose={() => setPaymentVideo(null)}><form onSubmit={payAndEnroll} className="space-y-3"><p className="text-xs text-slate-600">Enroll in <b>{paymentVideo.title}</b> for <b>{paymentVideo.currency || 'LKR'} {paymentVideo.price}</b>.</p><input required placeholder="Name on card" value={payment.cardName} onChange={e => setPayment({ ...payment, cardName: e.target.value })} className="w-full border rounded-lg p-2 text-xs" /><input required placeholder="Card number" value={payment.cardNumber} onChange={e => setPayment({ ...payment, cardNumber: e.target.value })} className="w-full border rounded-lg p-2 text-xs" /><div className="grid grid-cols-2 gap-2"><input required placeholder="MM/YY" value={payment.cardExpiry} onChange={e => setPayment({ ...payment, cardExpiry: e.target.value })} className="border rounded-lg p-2 text-xs" /><input required placeholder="CVV" value={payment.cardCvv} onChange={e => setPayment({ ...payment, cardCvv: e.target.value })} className="border rounded-lg p-2 text-xs" /></div><button disabled={busy === paymentVideo.id} className="w-full linkedin-btn-primary py-2 text-xs flex justify-center items-center"><CreditCard className="w-4 h-4 mr-1.5" />{busy === paymentVideo.id ? 'Processing…' : 'Pay & enroll'}</button></form></Modal>}
       {booking && <Modal title={`Book ${professor.name}`} onClose={() => setBooking(false)}><form onSubmit={bookSession} className="space-y-3"><input required type="date" value={bookingForm.date} onChange={e => setBookingForm({ ...bookingForm, date: e.target.value })} className="w-full border rounded-lg p-2 text-xs" /><input required placeholder="Time" value={bookingForm.time} onChange={e => setBookingForm({ ...bookingForm, time: e.target.value })} className="w-full border rounded-lg p-2 text-xs" /><textarea required placeholder="What would you like to discuss?" value={bookingForm.topic} onChange={e => setBookingForm({ ...bookingForm, topic: e.target.value })} className="w-full border rounded-lg p-2 text-xs" rows={3} /><button disabled={busy === 'booking'} className="w-full linkedin-btn-primary py-2 text-xs">{busy === 'booking' ? 'Booking…' : 'Confirm booking'}</button></form></Modal>}
-      {reviewing && <Modal title="Review your session" onClose={() => setReviewing(null)}><form onSubmit={submitReview} className="space-y-3"><label className="block text-xs font-semibold">Rating<select value={reviewForm.rating} onChange={e => setReviewForm({ ...reviewForm, rating: Number(e.target.value) })} className="block mt-1 border rounded-lg p-2 text-xs w-full"><option value="5">5 - Excellent</option><option value="4">4 - Good</option><option value="3">3 - Average</option><option value="2">2 - Needs improvement</option><option value="1">1 - Poor</option></select></label><textarea required rows={3} placeholder="Share your review" value={reviewForm.comment} onChange={e => setReviewForm({ ...reviewForm, comment: e.target.value })} className="w-full border rounded-lg p-2 text-xs" /><button className="w-full linkedin-btn-primary py-2 text-xs">Submit review</button></form></Modal>}
+      {reviewing && <Modal title={reviewing.general ? `Review ${professor.name}` : 'Review your session'} onClose={() => setReviewing(null)}><form onSubmit={submitReview} className="space-y-3"><label className="block text-xs font-semibold">Rating<select value={reviewForm.rating} onChange={e => setReviewForm({ ...reviewForm, rating: Number(e.target.value) })} className="block mt-1 border rounded-lg p-2 text-xs w-full"><option value="5">5 - Excellent</option><option value="4">4 - Good</option><option value="3">3 - Average</option><option value="2">2 - Needs improvement</option><option value="1">1 - Poor</option></select></label><textarea required rows={3} placeholder="Share your review" value={reviewForm.comment} onChange={e => setReviewForm({ ...reviewForm, comment: e.target.value })} className="w-full border rounded-lg p-2 text-xs" /><button className="w-full linkedin-btn-primary py-2 text-xs">{reviewing.general && reviewing.id ? 'Save changes' : 'Submit review'}</button></form></Modal>}
     </div>
   );
 }

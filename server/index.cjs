@@ -20,6 +20,51 @@ const pool = new Pool({
 
 const asyncRoute = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
+// ---------- AUTO-MIGRATE ON BOOT ----------
+async function ensureSchema() {
+  const stmts = [
+    `ALTER TABLE internship_applications ADD COLUMN IF NOT EXISTS user_id VARCHAR(100)`,
+    `ALTER TABLE internship_applications ADD COLUMN IF NOT EXISTS university VARCHAR(255)`,
+    `ALTER TABLE internship_applications ADD COLUMN IF NOT EXISTS gpa VARCHAR(50)`,
+    `ALTER TABLE internship_applications ADD COLUMN IF NOT EXISTS email VARCHAR(255)`,
+    `ALTER TABLE internship_applications ADD COLUMN IF NOT EXISTS phone VARCHAR(100)`,
+    `ALTER TABLE internship_applications ADD COLUMN IF NOT EXISTS degree VARCHAR(255)`,
+    `ALTER TABLE internship_applications ADD COLUMN IF NOT EXISTS faculty VARCHAR(255)`,
+    `ALTER TABLE internship_applications ADD COLUMN IF NOT EXISTS experience TEXT`,
+    `ALTER TABLE internship_applications ADD COLUMN IF NOT EXISTS cv_base64 TEXT`,
+    `ALTER TABLE internship_applications ADD COLUMN IF NOT EXISTS cv_name VARCHAR(255)`,
+    `ALTER TABLE internship_applications ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'Applied'`,
+    `ALTER TABLE investment_interests ADD COLUMN IF NOT EXISTS investor_id VARCHAR(100)`,
+    `ALTER TABLE investment_interests ADD COLUMN IF NOT EXISTS project_id VARCHAR(100)`,
+    `ALTER TABLE investment_interests ADD COLUMN IF NOT EXISTS status VARCHAR(100) DEFAULT 'Pending'`,
+    `ALTER TABLE investment_interests ADD COLUMN IF NOT EXISTS meeting_slot VARCHAR(100)`,
+    `ALTER TABLE investment_interests ADD COLUMN IF NOT EXISTS ai_summary TEXT`,
+    `ALTER TABLE investment_interests ADD COLUMN IF NOT EXISTS student_id VARCHAR(100)`,
+    `CREATE TABLE IF NOT EXISTS investment_meetings (
+      id VARCHAR(100) PRIMARY KEY,
+      investment_id VARCHAR(100) REFERENCES investment_interests(id) ON DELETE CASCADE,
+      investor_id VARCHAR(100),
+      student_id VARCHAR(100),
+      date VARCHAR(100),
+      time VARCHAR(100),
+      link TEXT,
+      message TEXT,
+      status VARCHAR(40) DEFAULT 'Proposed',
+      change_request TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `ALTER TABLE investment_meetings ADD COLUMN IF NOT EXISTS investor_id VARCHAR(100)`,
+    `ALTER TABLE investment_meetings ADD COLUMN IF NOT EXISTS student_id VARCHAR(100)`,
+    `ALTER TABLE investment_meetings ADD COLUMN IF NOT EXISTS change_request TEXT`,
+    `ALTER TABLE investment_meetings ADD COLUMN IF NOT EXISTS message TEXT`,
+    `ALTER TABLE investment_meetings ADD COLUMN IF NOT EXISTS status VARCHAR(40) DEFAULT 'Proposed'`
+  ];
+  for (const sql of stmts) {
+    try { await pool.query(sql); }
+    catch (e) { console.warn('⚠️  migrate skipped:', e.message); }
+  }
+}
+
 // ---------- HELPERS ----------
 async function buildUser(u) {
   if (!u) return null;
@@ -46,6 +91,7 @@ async function buildUser(u) {
     consultationType: u.consultation_type, consultation_type: u.consultation_type,
     consultationFee: u.consultation_fee || 0,
     consultationCurrency: u.consultation_currency || 'LKR',
+    enterpriseProfile: u.enterprise_profile || null,
     stats: {
       connections: parseInt(c.rows[0].count, 10),
       projects: parseInt(p.rows[0].count, 10),
@@ -344,6 +390,29 @@ app.get('/api/users/:id/invites', asyncRoute(async (req, res) => {
     skill: x.skill, pitch: x.pitch, createdAt: x.created_at
   })));
 }));
+app.get('/api/notifications/:id', asyncRoute(async (req, res) => {
+  const user = await pool.query('SELECT role FROM users WHERE id=$1', [req.params.id]);
+  if (!user.rows.length) return res.status(404).json({ error: 'User not found' });
+  const role = user.rows[0].role;
+  const [sessions, questions, advisor, invites] = await Promise.all([
+    pool.query(role === 'professor'
+      ? `SELECT COUNT(*) FROM professor_sessions WHERE prof_id=$1 AND status='Pending'`
+      : `SELECT COUNT(*) FROM professor_sessions WHERE student_id=$1 AND status IN ('Approved','Rejected')`, [req.params.id]),
+    pool.query(role === 'professor'
+      ? `SELECT COUNT(*) FROM professor_questions WHERE prof_id=$1 AND answer IS NULL`
+      : `SELECT COUNT(*) FROM professor_questions WHERE student_id=$1 AND answer IS NOT NULL`, [req.params.id]),
+    role === 'professor'
+      ? pool.query(`SELECT COUNT(*) FROM project_advisors WHERE prof_id=$1 AND status='Pending'`, [req.params.id])
+      : Promise.resolve({ rows: [{ count: 0 }] }),
+    pool.query(`SELECT COUNT(*) FROM project_requests WHERE applicant_id=$1 AND type='invite' AND status='Pending'`, [req.params.id])
+  ]);
+  res.json({
+    calendar: Number(sessions.rows[0].count),
+    questions: Number(questions.rows[0].count),
+    projects: Number(advisor.rows[0].count),
+    invites: Number(invites.rows[0].count)
+  });
+}));
 app.get('/api/users/:id/enrollments', asyncRoute(async (req, res) => {
   const r = await pool.query(
     `SELECT ce.*, pv.title AS video_title, pv.thumbnail_url, pv.video_url, pv.duration_minutes,
@@ -376,7 +445,7 @@ app.post('/api/auth/login', asyncRoute(async (req, res) => {
   res.json({ success: true, user: await buildUser(u) });
 }));
 app.post('/api/auth/register', asyncRoute(async (req, res) => {
-  const { role, name, email, password, studentId, university, faculty, degree, company, industry, avatarBase64, idCardBase64, bio, title, skills } = req.body;
+  const { role, name, email, password, studentId, university, faculty, degree, company, industry, avatarBase64, idCardBase64, bio, title, skills, enterpriseProfile } = req.body;
   if (!email || !name) return res.status(400).json({ error: 'Name and email required' });
   const exists = await pool.query('SELECT id FROM users WHERE email=$1', [email]);
   if (exists.rows.length) return res.status(409).json({ error: 'Email already registered' });
@@ -392,18 +461,20 @@ app.post('/api/auth/register', asyncRoute(async (req, res) => {
         else { reason = `Student ID pattern mismatch. Flagged for admin review.`; }
       } catch {}
     }
+  } else if (role === 'business') {
+    isVerified = false; status = 'pending'; reason = 'Enterprise submission received. Admin verification is expected within 24–48 hours.';
   } else { isVerified = true; status = 'verified'; reason = 'Account created.'; }
 
   const defaultAvatar = avatarBase64 || 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><circle cx="50" cy="50" r="50" fill="%230A66C2"/><circle cx="50" cy="40" r="20" fill="%23ffffff"/><path d="M20,85 C20,65 35,60 50,60 C65,60 80,65 80,85 Z" fill="%23ffffff"/></svg>';
   const userId = `usr_${role || 'student'}_${Date.now()}`;
 
   const r = await pool.query(
-    `INSERT INTO users (id, role, name, email, password, student_id, university_name, faculty, degree, company, industry, title, bio, avatar_base64, skills, verified, verification_status, verification_reason)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18) RETURNING *`,
+    `INSERT INTO users (id, role, name, email, password, student_id, university_name, faculty, degree, company, industry, title, bio, avatar_base64, skills, verified, verification_status, verification_reason, enterprise_profile)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19) RETURNING *`,
     [userId, role || 'student', name, email, password || '1234', studentId || null,
      university || null, faculty || null, degree || null, company || null, industry || null,
      title || null, bio || 'Undergraduate student building tech solutions.', defaultAvatar,
-     skills || null, isVerified, status, reason]);
+    skills || null, isVerified, status, reason, enterpriseProfile || null]);
 
   if (!isVerified) {
     await pool.query(
@@ -892,6 +963,7 @@ app.get('/api/professors/sessions', asyncRoute(async (req, res) => {
     id: s.id, profId: s.prof_id, profName: s.prof_name, university: s.university,
     studentId: s.student_id, studentName: s.student_name, date: s.date, time: s.time,
     type: s.type, topic: s.topic, status: s.status, notes: s.notes,
+    meetingLink: s.meeting_link, responseMessage: s.response_message, rejectionReason: s.rejection_reason,
     completedAt: s.completed_at, rating: s.rating, ratingComment: s.rating_comment
   })));
 }));
@@ -972,19 +1044,35 @@ app.post('/api/professors/sessions', asyncRoute(async (req, res) => {
   const id = `sess_${Date.now()}`;
   await pool.query(
     `INSERT INTO professor_sessions (id, prof_id, prof_name, university, student_id, student_name, date, time, type, topic, status)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'Confirmed')`,
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'Pending')`,
     [id, p.rows[0].id, p.rows[0].name, p.rows[0].university_name, s.rows[0].id, s.rows[0].name, date, time, type || 'Consultation', topic || '']);
-  res.status(201).json({ id, profId, profName: p.rows[0].name, studentId, studentName: s.rows[0].name, date, time, type, topic, status: 'Confirmed' });
+  res.status(201).json({ id, profId, profName: p.rows[0].name, studentId, studentName: s.rows[0].name, date, time, type, topic, status: 'Pending' });
 }));
 app.put('/api/professors/sessions/:id', asyncRoute(async (req, res) => {
-  const { topic, status, date, time, notes, rating, ratingComment } = req.body;
+  const { actorId, topic, status, date, time, notes, rating, ratingComment, meetingLink, responseMessage, rejectionReason } = req.body;
+  const existing = await pool.query('SELECT * FROM professor_sessions WHERE id=$1', [req.params.id]);
+  if (!existing.rows.length) return res.status(404).json({ error: 'Session not found' });
+  const session = existing.rows[0];
+  const isProfessor = actorId === session.prof_id;
+  const isStudent = actorId === session.student_id;
+  if (!isProfessor && !isStudent) return res.status(403).json({ error: 'Not allowed' });
+  if (isStudent && ['status', 'meetingLink', 'responseMessage', 'rejectionReason'].some(key => req.body[key] !== undefined)) {
+    return res.status(403).json({ error: 'Students cannot approve, reject, or set meeting details' });
+  }
+  if (isProfessor && status && !['Approved', 'Rejected', 'Completed'].includes(status)) {
+    return res.status(400).json({ error: 'Invalid session status' });
+  }
   await pool.query(
-    `UPDATE professor_sessions SET topic=COALESCE($1,topic), status=COALESCE($2,status), date=COALESCE($3,date), time=COALESCE($4,time), notes=COALESCE($5,notes), rating=COALESCE($6,rating), rating_comment=COALESCE($7,rating_comment), completed_at=CASE WHEN $2='Completed' THEN CURRENT_TIMESTAMP ELSE completed_at END WHERE id=$8`,
-    [topic, status, date, time, notes, rating, ratingComment, req.params.id]);
+    `UPDATE professor_sessions SET topic=COALESCE($1,topic), status=COALESCE($2,status), date=CASE WHEN $10 THEN COALESCE($3,date) ELSE date END, time=CASE WHEN $10 THEN COALESCE($4,time) ELSE time END, notes=COALESCE($5,notes), rating=COALESCE($6,rating), rating_comment=COALESCE($7,rating_comment), meeting_link=COALESCE($8,meeting_link), response_message=COALESCE($9,response_message), rejection_reason=COALESCE($11,rejection_reason), completed_at=CASE WHEN $2='Completed' THEN CURRENT_TIMESTAMP ELSE completed_at END WHERE id=$12`,
+    [isProfessor ? topic : undefined, isProfessor ? status : undefined, date, time, notes, rating, ratingComment, meetingLink, responseMessage, isStudent, rejectionReason, req.params.id]);
   const r = await pool.query('SELECT * FROM professor_sessions WHERE id=$1', [req.params.id]);
   res.json(r.rows[0]);
 }));
 app.delete('/api/professors/sessions/:id', asyncRoute(async (req, res) => {
+  const { actorId } = req.body || {};
+  const existing = await pool.query('SELECT prof_id, student_id, status FROM professor_sessions WHERE id=$1', [req.params.id]);
+  if (!existing.rows.length) return res.status(404).json({ error: 'Session not found' });
+  if (actorId !== existing.rows[0].prof_id) return res.status(403).json({ error: 'Only the professor can delete a booking' });
   await pool.query('DELETE FROM professor_sessions WHERE id=$1', [req.params.id]);
   res.json({ message: 'Deleted' });
 }));
@@ -1005,6 +1093,36 @@ app.get('/api/professors/:id/reviews', asyncRoute(async (req, res) => {
     avgRating: avg.rows[0].avg ? parseFloat(avg.rows[0].avg) : 0,
     count: parseInt(avg.rows[0].count, 10)
   });
+}));
+
+app.post('/api/professors/:id/reviews', asyncRoute(async (req, res) => {
+  const { studentId, rating, comment } = req.body;
+  if (!studentId || !rating || rating < 1 || rating > 5 || !comment?.trim()) return res.status(400).json({ error: 'Rating and review are required' });
+  const professor = await pool.query("SELECT id FROM users WHERE id=$1 AND role='professor'", [req.params.id]);
+  if (!professor.rows.length) return res.status(404).json({ error: 'Professor not found' });
+  const student = await pool.query("SELECT id, name, avatar_base64 FROM users WHERE id=$1 AND role='student'", [studentId]);
+  if (!student.rows.length) return res.status(403).json({ error: 'Only students can review professors' });
+  const existing = await pool.query('SELECT id FROM session_reviews WHERE prof_id=$1 AND student_id=$2 AND session_id IS NULL', [req.params.id, studentId]);
+  const id = existing.rows[0]?.id || `review_${Date.now()}`;
+  if (existing.rows.length) {
+    await pool.query('UPDATE session_reviews SET rating=$1, comment=$2, created_at=CURRENT_TIMESTAMP WHERE id=$3', [rating, comment.trim(), id]);
+  } else {
+    await pool.query(`INSERT INTO session_reviews (id, session_id, prof_id, student_id, student_name, student_avatar, rating, comment) VALUES ($1,NULL,$2,$3,$4,$5,$6,$7)`, [id, req.params.id, studentId, student.rows[0].name, student.rows[0].avatar_base64, rating, comment.trim()]);
+  }
+  res.status(201).json({ id, profId: req.params.id, studentId, rating, comment: comment.trim() });
+}));
+
+app.put('/api/professors/reviews/:reviewId', asyncRoute(async (req, res) => {
+  const { studentId, rating, comment } = req.body;
+  const r = await pool.query('UPDATE session_reviews SET rating=$1, comment=$2, created_at=CURRENT_TIMESTAMP WHERE id=$3 AND student_id=$4 AND session_id IS NULL RETURNING id, prof_id, student_id, rating, comment', [rating, comment?.trim(), req.params.reviewId, studentId]);
+  if (!r.rows.length) return res.status(403).json({ error: 'Not your professor review' });
+  res.json(r.rows[0]);
+}));
+
+app.delete('/api/professors/reviews/:reviewId', asyncRoute(async (req, res) => {
+  const r = await pool.query('DELETE FROM session_reviews WHERE id=$1 AND student_id=$2 AND session_id IS NULL RETURNING id', [req.params.reviewId, req.body?.studentId]);
+  if (!r.rows.length) return res.status(403).json({ error: 'Not your professor review' });
+  res.json({ message: 'Deleted' });
 }));
 
 app.post('/api/professors/sessions/:sid/review', asyncRoute(async (req, res) => {
@@ -1034,9 +1152,53 @@ app.post('/api/professors/sessions/:sid/review', asyncRoute(async (req, res) => 
 }));
 
 app.delete('/api/professors/sessions/:sid/review', asyncRoute(async (req, res) => {
+  const { studentId } = req.body || {};
+  const review = await pool.query('SELECT student_id FROM session_reviews WHERE session_id=$1', [req.params.sid]);
+  if (!review.rows.length || review.rows[0].student_id !== studentId) return res.status(403).json({ error: 'Only the reviewer can delete this review' });
   await pool.query('DELETE FROM session_reviews WHERE session_id=$1', [req.params.sid]);
   await pool.query('UPDATE professor_sessions SET rating=NULL, rating_comment=NULL WHERE id=$1', [req.params.sid]);
   res.json({ message: 'Deleted' });
+}));
+
+app.post('/api/admin/complaints', asyncRoute(async (req, res) => {
+  const { reporterId, targetType, targetId, reason } = req.body;
+  if (!reporterId || !targetType || !targetId || !reason?.trim()) return res.status(400).json({ error: 'Complaint details required' });
+  const id = `complaint_${Date.now()}`;
+  await pool.query(`INSERT INTO admin_complaints (id, reporter_id, target_type, target_id, reason) VALUES ($1,$2,$3,$4,$5)`, [id, reporterId, targetType, targetId, reason.trim()]);
+  res.status(201).json({ id, status: 'Pending' });
+}));
+
+app.put('/api/investment-meetings/:id', asyncRoute(async (req, res) => {
+  const { actorId, action, changeRequest, date, time, link, message } = req.body;
+  const current = await pool.query('SELECT * FROM investment_meetings WHERE id=$1', [req.params.id]);
+  if (!current.rows.length) return res.status(404).json({ error: 'Meeting not found' });
+  const meeting = current.rows[0];
+
+  if (actorId !== meeting.student_id && actorId !== meeting.investor_id) {
+    return res.status(403).json({ error: 'Not allowed' });
+  }
+
+  if (actorId === meeting.student_id && action === 'change_request') {
+    await pool.query(
+      "UPDATE investment_meetings SET status='Change requested', change_request=$1 WHERE id=$2",
+      [changeRequest, req.params.id]
+    );
+  } else if (actorId === meeting.student_id && action === 'accept') {
+    await pool.query(
+      "UPDATE investment_meetings SET status='Accepted' WHERE id=$1",
+      [req.params.id]
+    );
+  } else if (actorId === meeting.investor_id) {
+    await pool.query(
+      "UPDATE investment_meetings SET date=COALESCE($1,date), time=COALESCE($2,time), link=COALESCE($3,link), message=COALESCE($4,message), status='Proposed' WHERE id=$5",
+      [date, time, link, message, req.params.id]
+    );
+  } else {
+    return res.status(403).json({ error: 'Invalid meeting action' });
+  }
+
+  const r = await pool.query('SELECT * FROM investment_meetings WHERE id=$1', [req.params.id]);
+  res.json(r.rows[0]);
 }));
 
 // Videos
@@ -1210,14 +1372,38 @@ app.put('/api/professors/:pid/questions/:qid', asyncRoute(async (req, res) => {
   const r = await pool.query('SELECT * FROM professor_questions WHERE id=$1', [req.params.qid]);
   res.json(r.rows[0]);
 }));
+app.put('/api/professors/questions/:qid', asyncRoute(async (req, res) => {
+  const { studentId, question } = req.body;
+  if (!studentId || !question?.trim()) return res.status(400).json({ error: 'Question required' });
+  const r = await pool.query('UPDATE professor_questions SET question=$1 WHERE id=$2 AND student_id=$3 RETURNING *', [question.trim(), req.params.qid, studentId]);
+  if (!r.rows.length) return res.status(403).json({ error: 'Not your question' });
+  res.json(r.rows[0]);
+}));
+app.delete('/api/professors/questions/:qid', asyncRoute(async (req, res) => {
+  const r = await pool.query('DELETE FROM professor_questions WHERE id=$1 AND student_id=$2 RETURNING id', [req.params.qid, req.body?.studentId]);
+  if (!r.rows.length) return res.status(403).json({ error: 'Not your question' });
+  res.json({ message: 'Deleted' });
+}));
+app.put('/api/professors/:pid/questions/:qid/answer', asyncRoute(async (req, res) => {
+  const { answer } = req.body;
+  if (!answer?.trim()) return res.status(400).json({ error: 'Answer required' });
+  const r = await pool.query('UPDATE professor_questions SET answer=$1, answered_at=CURRENT_TIMESTAMP WHERE id=$2 AND prof_id=$3 RETURNING *', [answer.trim(), req.params.qid, req.params.pid]);
+  if (!r.rows.length) return res.status(403).json({ error: 'Not your question' });
+  res.json(r.rows[0]);
+}));
+app.delete('/api/professors/:pid/questions/:qid/answer', asyncRoute(async (req, res) => {
+  const r = await pool.query('UPDATE professor_questions SET answer=NULL, answered_at=NULL WHERE id=$1 AND prof_id=$2 RETURNING id', [req.params.qid, req.params.pid]);
+  if (!r.rows.length) return res.status(403).json({ error: 'Not your question' });
+  res.json({ message: 'Answer deleted' });
+}));
 app.delete('/api/professors/:pid/questions/:qid', asyncRoute(async (req, res) => {
   await pool.query('DELETE FROM professor_questions WHERE id=$1 AND prof_id=$2', [req.params.qid, req.params.pid]);
   res.json({ message: 'Deleted' });
 }));
 
 // ---------- INTERNSHIPS ----------
-app.get('/api/internships', asyncRoute(async (_req, res) => {
-  const r = await pool.query('SELECT * FROM internships ORDER BY created_at DESC');
+app.get('/api/internships', asyncRoute(async (req, res) => {
+  const r = await pool.query(req.query.ownerId ? 'SELECT * FROM internships WHERE owner_id=$1 ORDER BY created_at DESC' : 'SELECT * FROM internships ORDER BY created_at DESC', req.query.ownerId ? [req.query.ownerId] : []);
   const jobs = r.rows;
   for (const j of jobs) {
     const apps = await pool.query('SELECT * FROM internship_applications WHERE internship_id=$1', [j.id]);
@@ -1226,11 +1412,11 @@ app.get('/api/internships', asyncRoute(async (_req, res) => {
   res.json(jobs);
 }));
 app.post('/api/internships', asyncRoute(async (req, res) => {
-  const { title, company, location, stipend, type, description } = req.body;
+  const { title, company, location, stipend, type, description, ownerId } = req.body;
   const id = `job_${Date.now()}`;
   await pool.query(
-    `INSERT INTO internships (id, title, company, location, stipend, type, description) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-    [id, title, company, location || 'Colombo', stipend || 'LKR 50,000', type || 'Internship', description]);
+    `INSERT INTO internships (id, owner_id, title, company, location, stipend, type, description) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+    [id, ownerId || null, title, company, location || 'Colombo', stipend || 'LKR 50,000', type || 'Internship', description]);
   const r = await pool.query('SELECT * FROM internships WHERE id=$1', [id]);
   res.status(201).json(r.rows[0]);
 }));
@@ -1252,12 +1438,75 @@ app.put('/api/internships/:jobId/applicants/:appId', asyncRoute(async (req, res)
   res.json(r.rows[0]);
 }));
 
+// ---------- APPLY (HARDENED) ----------
+app.post('/api/internships/:jobId/apply', asyncRoute(async (req, res) => {
+  try {
+    const {
+      userId, name, email, phone, university, degree, faculty, gpa,
+      experience, cvBase64, cvName
+    } = req.body;
+
+    if (!userId || !name || !email || !phone || !degree || !experience || !cvBase64 || !cvName) {
+      return res.status(400).json({ error: 'Personal details, education, experience, contact, and CV are required' });
+    }
+
+    const job = await pool.query('SELECT id FROM internships WHERE id=$1', [req.params.jobId]);
+    if (!job.rows.length) {
+      return res.status(404).json({ error: 'Internship posting not found' });
+    }
+
+    const user = await pool.query('SELECT id FROM users WHERE id=$1', [userId]);
+    if (!user.rows.length) {
+      return res.status(404).json({ error: 'User account not found. Please log out and log in again.' });
+    }
+
+    const existing = await pool.query(
+      'SELECT id FROM internship_applications WHERE internship_id=$1 AND user_id=$2',
+      [req.params.jobId, userId]
+    );
+    if (existing.rows.length) {
+      return res.status(409).json({ error: 'Already applied' });
+    }
+
+    const id = `app_${Date.now()}`;
+
+    await pool.query(
+      `INSERT INTO internship_applications
+        (id, internship_id, user_id, name, email, phone, university, degree,
+         faculty, gpa, experience, cv_base64, cv_name)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+      [
+        id,
+        req.params.jobId,
+        userId,
+        String(name).slice(0, 255),
+        String(email).slice(0, 255),
+        String(phone || '').slice(0, 100),
+        String(university || '').slice(0, 255),
+        String(degree).slice(0, 255),
+        String(faculty || '').slice(0, 255),
+        String(gpa || '').slice(0, 50),
+        String(experience || '').slice(0, 5000),
+        String(cvBase64),
+        String(cvName).slice(0, 255)
+      ]
+    );
+
+    return res.status(201).json({ id, status: 'Applied' });
+  } catch (err) {
+    console.error('❌ apply route failed:', err.message);
+    return res.status(500).json({ error: err.message || 'Application failed' });
+  }
+}));
+
 // ---------- INVESTMENTS ----------
 app.get('/api/investments', asyncRoute(async (req, res) => {
-  const { investorId } = req.query;
+  const { investorId, studentId } = req.query;
   const r = investorId
     ? await pool.query('SELECT * FROM investment_interests WHERE investor_id=$1 ORDER BY created_at DESC', [investorId])
-    : await pool.query('SELECT * FROM investment_interests ORDER BY created_at DESC');
+    : studentId
+      ? await pool.query(`SELECT ii.* FROM investment_interests ii JOIN projects p ON p.id=ii.project_id WHERE p.owner_id=$1 OR ii.student_lead ILIKE (SELECT name FROM users WHERE id=$1) || '%' ORDER BY ii.created_at DESC`, [studentId])
+      : await pool.query('SELECT * FROM investment_interests ORDER BY created_at DESC');
   res.json(r.rows.map(i => ({
     id: i.id, projectId: i.project_id, projectTitle: i.project_title, studentLead: i.student_lead,
     investorId: i.investor_id, investorName: i.investor_name, targetAmount: i.target_amount,
@@ -1285,11 +1534,47 @@ app.delete('/api/investments/:id', asyncRoute(async (req, res) => {
   await pool.query('DELETE FROM investment_interests WHERE id=$1', [req.params.id]);
   res.json({ message: 'Deleted' });
 }));
+app.get('/api/investments/:id/meetings', asyncRoute(async (req, res) => {
+  const r = await pool.query('SELECT * FROM investment_meetings WHERE investment_id=$1 ORDER BY created_at DESC', [req.params.id]);
+  res.json(r.rows.map(m => ({ id: m.id, investmentId: m.investment_id, date: m.date, time: m.time, link: m.link, message: m.message, status: m.status, changeRequest: m.change_request })));
+}));
+app.post('/api/investments/:id/meetings', asyncRoute(async (req, res) => {
+  const { investorId, studentId, date, time, link, message } = req.body;
+
+  const inv = await pool.query(
+    "SELECT * FROM investment_interests WHERE id=$1 AND investor_id=$2 AND status='Approved'",
+    [req.params.id, investorId]
+  );
+  if (!inv.rows.length) {
+    return res.status(403).json({ error: 'Investment must be admin-approved and owned by investor' });
+  }
+
+  // Resolve student id: prefer explicit, else look up the project owner
+  let resolvedStudentId = studentId || null;
+  if (!resolvedStudentId && inv.rows[0].project_id) {
+    const owner = await pool.query('SELECT owner_id FROM projects WHERE id=$1', [inv.rows[0].project_id]);
+    resolvedStudentId = owner.rows[0]?.owner_id || null;
+  }
+
+  if (!resolvedStudentId) {
+    return res.status(400).json({ error: 'Unable to determine which student this investment belongs to' });
+  }
+
+  const id = `invmeet_${Date.now()}`;
+  await pool.query(
+    'INSERT INTO investment_meetings (id, investment_id, investor_id, student_id, date, time, link, message) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)',
+    [id, req.params.id, investorId, resolvedStudentId, date, time, link, message || '']
+  );
+  res.status(201).json({ id, status: 'Proposed', date, time, link, message, studentId: resolvedStudentId });
+}));
 
 // ---------- ADMIN ----------
 app.get('/api/admin/verification-queue', asyncRoute(async (_req, res) => {
-  const r = await pool.query('SELECT * FROM verification_queue ORDER BY id DESC');
-  res.json(r.rows);
+  const r = await pool.query(`SELECT q.*, u.role, u.company, u.industry, u.enterprise_profile
+    FROM verification_queue q LEFT JOIN users u ON u.id=q.user_id ORDER BY q.id DESC`);
+  const direct = await pool.query(`SELECT id, name, email, role, company, industry, verified, verification_status, verification_reason, enterprise_profile
+    FROM users WHERE role IN ('professor','business') AND verification_status='pending' ORDER BY id DESC`);
+  res.json([...r.rows, ...direct.rows.map(u => ({ ...u, user_id: u.id, status: 'Pending', submitted_at: null }))]);
 }));
 app.post('/api/admin/verify/:id', asyncRoute(async (req, res) => {
   const { action } = req.body;
@@ -1298,9 +1583,60 @@ app.post('/api/admin/verify/:id', asyncRoute(async (req, res) => {
   const status = action === 'approve' ? 'Approved' : 'Rejected';
   await pool.query('UPDATE verification_queue SET status=$1 WHERE id=$2', [status, req.params.id]);
   if (action === 'approve') {
-    await pool.query("UPDATE users SET verified=TRUE, verification_status='verified' WHERE email=$1", [q.rows[0].email]);
+    await pool.query("UPDATE users SET verified=TRUE, verification_status='verified', verification_reason='Approved by admin' WHERE email=$1", [q.rows[0].email]);
+  } else {
+    await pool.query('DELETE FROM users WHERE email=$1', [q.rows[0].email]);
   }
   res.json({ message: status });
+}));
+app.post('/api/admin/verify-user/:id', asyncRoute(async (req, res) => {
+  const { action } = req.body;
+  const user = await pool.query("SELECT id FROM users WHERE id=$1 AND role IN ('professor','business')", [req.params.id]);
+  if (!user.rows.length) return res.status(404).json({ error: 'Account not found' });
+  if (action === 'approve') {
+    await pool.query("UPDATE users SET verified=TRUE, verification_status='verified', verification_reason='Approved by admin' WHERE id=$1", [req.params.id]);
+    await pool.query("UPDATE verification_queue SET status='Approved' WHERE user_id=$1", [req.params.id]);
+  } else {
+    await pool.query("UPDATE verification_queue SET status='Rejected' WHERE user_id=$1", [req.params.id]);
+    await pool.query('DELETE FROM users WHERE id=$1', [req.params.id]);
+  }
+  res.json({ message: action === 'approve' ? 'Approved' : 'Deleted' });
+}));
+app.get('/api/admin/investments', asyncRoute(async (_req, res) => {
+  const r = await pool.query('SELECT * FROM investment_interests ORDER BY created_at DESC');
+  res.json(r.rows);
+}));
+app.put('/api/admin/investments/:id', asyncRoute(async (req, res) => {
+  const status = req.body.action === 'approve' ? 'Approved' : 'Passed';
+  const r = await pool.query('UPDATE investment_interests SET status=$1 WHERE id=$2 RETURNING *', [status, req.params.id]);
+  if (!r.rows.length) return res.status(404).json({ error: 'Investment not found' });
+  res.json(r.rows[0]);
+}));
+app.get('/api/admin/content', asyncRoute(async (_req, res) => {
+  const [posts, projects, videos, complaints] = await Promise.all([
+    pool.query('SELECT id, author_id, author_name, author_role, content, created_at FROM posts ORDER BY created_at DESC'),
+    pool.query('SELECT id, owner_id, owner_name, title, description, created_at FROM projects ORDER BY created_at DESC'),
+    pool.query('SELECT id, prof_id, title, description, created_at FROM professor_videos ORDER BY created_at DESC'),
+    pool.query('SELECT * FROM admin_complaints ORDER BY created_at DESC')
+  ]);
+  res.json({ posts: posts.rows, projects: projects.rows, videos: videos.rows, complaints: complaints.rows });
+}));
+app.delete('/api/admin/content/:type/:id', asyncRoute(async (req, res) => {
+  const table = { posts: 'posts', projects: 'projects', videos: 'professor_videos' }[req.params.type];
+  if (!table) return res.status(400).json({ error: 'Invalid content type' });
+  await pool.query(`DELETE FROM ${table} WHERE id=$1`, [req.params.id]);
+  res.json({ message: 'Deleted' });
+}));
+app.put('/api/admin/complaints/:id', asyncRoute(async (req, res) => {
+  const action = req.body.action === 'remove' ? 'Removed' : 'Reviewed';
+  const c = await pool.query('UPDATE admin_complaints SET status=$1 WHERE id=$2 RETURNING *', [action, req.params.id]);
+  if (!c.rows.length) return res.status(404).json({ error: 'Complaint not found' });
+  if (action === 'Removed') {
+    const target = c.rows[0];
+    if (target.target_type === 'professor_review') await pool.query('DELETE FROM session_reviews WHERE id=$1', [target.target_id]);
+    if (target.target_type === 'video_review') await pool.query('DELETE FROM professor_video_impressions WHERE id=$1', [target.target_id]);
+  }
+  res.json(c.rows[0]);
 }));
 
 app.use((err, req, res, next) => {
@@ -1308,4 +1644,12 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: err.message });
 });
 
-app.listen(PORT, () => console.log(`🚀 UniYO backend on http://localhost:${PORT}`));
+// ---------- BOOT ----------
+ensureSchema()
+  .then(() => {
+    app.listen(PORT, () => console.log(`🚀 UniYO backend on http://localhost:${PORT}`));
+  })
+  .catch(err => {
+    console.error('❌ Migration failed:', err.message);
+    process.exit(1);
+  });

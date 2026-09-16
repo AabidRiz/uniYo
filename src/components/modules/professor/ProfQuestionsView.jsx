@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { MessageSquare, Send, Trash2, CheckCircle2, Clock } from 'lucide-react';
+import { MessageSquare, Send, Trash2, CheckCircle2, Clock, Edit3, Save } from 'lucide-react';
 import { api } from '../../../api/client';
 
 export default function ProfQuestionsView({ currentUser, onOpenUser }) {
   const [questions, setQuestions] = useState([]);
   const [drafts, setDrafts] = useState({});
   const [filter, setFilter] = useState('all');
+  const [editingAnswer, setEditingAnswer] = useState(null);
 
   const load = async () => {
     try { setQuestions(await api.getProfessorQuestions(currentUser.id)); }
@@ -27,6 +28,19 @@ export default function ProfQuestionsView({ currentUser, onOpenUser }) {
   const del = async (qid) => {
     if (!window.confirm('Delete this question?')) return;
     try { await api.deleteProfessorQuestion(currentUser.id, qid); await load(); }
+    catch (e) { alert(e.message); }
+  };
+
+  const updateAnswer = async (qid) => {
+    const text = (drafts[qid] || '').trim();
+    if (!text) return;
+    try { await api.updateProfessorAnswer(currentUser.id, qid, text); setEditingAnswer(null); await load(); }
+    catch (e) { alert(e.message); }
+  };
+
+  const deleteAnswer = async (qid) => {
+    if (!window.confirm('Delete your answer?')) return;
+    try { await api.deleteProfessorAnswer(currentUser.id, qid); await load(); }
     catch (e) { alert(e.message); }
   };
 
@@ -85,7 +99,11 @@ export default function ProfQuestionsView({ currentUser, onOpenUser }) {
                   <div className="flex items-center space-x-1 text-[11px] font-bold text-emerald-800 mb-1">
                     <CheckCircle2 className="w-3.5 h-3.5" /> Your Answer · {new Date(q.answeredAt).toLocaleString()}
                   </div>
-                  <p className="text-xs text-emerald-900 leading-relaxed">{q.answer}</p>
+                  {editingAnswer === q.id ? <textarea rows={3} value={drafts[q.id] || ''} onChange={e => setDrafts({ ...drafts, [q.id]: e.target.value })} className="w-full px-2 py-1 text-xs border rounded" /> : <p className="text-xs text-emerald-900 leading-relaxed">{q.answer}</p>}
+                  <div className="mt-2 flex justify-end gap-2">
+                    {editingAnswer === q.id ? <button onClick={() => updateAnswer(q.id)} className="text-blue-700 text-xs font-semibold flex items-center"><Save className="w-3 h-3 mr-1" />Save</button> : <button onClick={() => { setEditingAnswer(q.id); setDrafts({ ...drafts, [q.id]: q.answer }); }} className="text-blue-700 text-xs font-semibold flex items-center"><Edit3 className="w-3 h-3 mr-1" />Edit</button>}
+                    <button onClick={() => deleteAnswer(q.id)} className="text-red-600 text-xs font-semibold flex items-center"><Trash2 className="w-3 h-3 mr-1" />Delete reply</button>
+                  </div>
                 </div>
               </div>
             ) : (
