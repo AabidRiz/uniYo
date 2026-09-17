@@ -29,11 +29,11 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
     {
-        policy.WithOrigins(
+       policy.WithOrigins(
     "http://localhost:5173",
     "https://uniyo.vercel.app",
-    "https://uniyo-aabidriz.vercel.app",
-    "https://uniyo-git-main-aabidriz.vercel.app"
+    "https://uniyo-eight.vercel.app",
+    "https://uniyo-aabidriz.vercel.app"
 ).AllowAnyHeader().AllowAnyMethod();
 
     });
