@@ -18,12 +18,16 @@ public class RagService
         _log = log;
     }
 
-    private string SidecarUrl => _cfg["Rag:SidecarUrl"] ?? "http://localhost:5001";
-    private string GroqUrl => _cfg["Rag:GroqUrl"]!;
-    private string GroqModel => _cfg["Rag:GroqModel"] ?? "openai/gpt-oss-20b";
-    private string GroqKey => _cfg["Rag:GroqApiKey"] ?? "";
-    private int TopK => int.TryParse(_cfg["Rag:TopK"], out var k) ? k : 5;
-    private string RagConn => _cfg.GetConnectionString("RagConnection")!;
+    private string SidecarUrl => Environment.GetEnvironmentVariable("SIDECAR_URL")
+    ?? _cfg["Rag:SidecarUrl"] ?? "http://localhost:5001";
+private string GroqUrl => _cfg["Rag:GroqUrl"] ?? "https://api.groq.com/openai/v1/chat/completions";
+private string GroqModel => Environment.GetEnvironmentVariable("GROQ_MODEL")
+    ?? _cfg["Rag:GroqModel"] ?? "openai/gpt-oss-20b";
+private string GroqKey => Environment.GetEnvironmentVariable("GROQ_API_KEY")
+    ?? _cfg["Rag:GroqApiKey"] ?? "";
+private int TopK => int.TryParse(_cfg["Rag:TopK"], out var k) ? k : 5;
+private string RagConn => Environment.GetEnvironmentVariable("RAG_DATABASE_URL")
+    ?? _cfg.GetConnectionString("RagConnection")!;
 
     // ---------- 1. Get embedding from the Node sidecar ----------
     private async Task<float[]> EmbedAsync(string text)

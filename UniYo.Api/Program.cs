@@ -6,7 +6,8 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.WebHost.UseUrls("http://localhost:5000");
 
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+var connectionString = Environment.GetEnvironmentVariable("DATABASE_URL")
+    ?? builder.Configuration.GetConnectionString("DefaultConnection")
     ?? "Host=localhost;Database=uniyo_db;Username=postgres;Password=1234";
 
 builder.Services.AddDbContext<UniYoDbContext>(options =>
