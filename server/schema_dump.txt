@@ -1,0 +1,354 @@
+
+=== admin_complaints ===
+  id                           character varying              null=NO
+  reporter_id                  character varying              null=YES
+  target_type                  character varying              null=NO
+  target_id                    character varying              null=NO
+  reason                       text                           null=NO
+  status                       character varying              null=YES
+  created_at                   timestamp without time zone    null=YES
+
+=== course_enrollments ===
+  id                           character varying              null=NO
+  student_id                   character varying              null=YES
+  video_id                     character varying              null=YES
+  prof_id                      character varying              null=YES
+  status                       character varying              null=YES
+  is_paid                      boolean                        null=YES
+  amount_paid                  character varying              null=YES
+  transaction_id               character varying              null=YES
+  paid_at                      timestamp without time zone    null=YES
+  created_at                   timestamp without time zone    null=YES
+
+=== internship_applications ===
+  id                           character varying              null=NO
+  internship_id                character varying              null=YES
+  name                         character varying              null=YES
+  university                   character varying              null=YES
+  gpa                          character varying              null=YES
+  status                       character varying              null=YES
+  email                        character varying              null=YES
+  phone                        character varying              null=YES
+  degree                       character varying              null=YES
+  faculty                      character varying              null=YES
+  experience                   text                           null=YES
+  cv_base64                    text                           null=YES
+  cv_name                      character varying              null=YES
+  user_id                      character varying              null=YES
+
+=== internships ===
+  id                           character varying              null=NO
+  title                        character varying              null=NO
+  company                      character varying              null=NO
+  location                     character varying              null=YES
+  stipend                      character varying              null=YES
+  type                         character varying              null=YES
+  description                  text                           null=YES
+  owner_id                     character varying              null=YES
+  created_at                   timestamp without time zone    null=YES
+
+=== investment_interests ===
+  id                           character varying              null=NO
+  project_title                character varying              null=YES
+  student_lead                 character varying              null=YES
+  investor_name                character varying              null=YES
+  target_amount                character varying              null=YES
+  status                       character varying              null=YES
+  ai_summary                   text                           null=YES
+  meeting_slot                 character varying              null=YES
+  created_at                   timestamp without time zone    null=YES
+  investor_id                  character varying              null=YES
+  project_id                   character varying              null=YES
+  student_id                   character varying              null=YES
+
+=== investment_meetings ===
+  id                           character varying              null=NO
+  investment_id                character varying              null=YES
+  investor_id                  character varying              null=YES
+  student_id                   character varying              null=YES
+  date                         character varying              null=YES
+  time                         character varying              null=YES
+  link                         text                           null=YES
+  message                      text                           null=YES
+  status                       character varying              null=YES
+  change_request               text                           null=YES
+  created_at                   timestamp without time zone    null=YES
+
+=== post_comments ===
+  id                           character varying              null=NO
+  post_id                      character varying              null=YES
+  author_id                    character varying              null=YES
+  author_name                  character varying              null=YES
+  author_avatar_base64         text                           null=YES
+  content                      text                           null=NO
+  created_at                   timestamp without time zone    null=YES
+
+=== post_likes ===
+  post_id                      character varying              null=NO
+  user_id                      character varying              null=NO
+
+=== posts ===
+  id                           character varying              null=NO
+  author_id                    character varying              null=YES
+  author_name                  character varying              null=YES
+  author_university            character varying              null=YES
+  author_avatar_base64         text                           null=YES
+  author_role                  character varying              null=YES
+  author_verified              boolean                        null=YES
+  content                      text                           null=NO
+  image_base64                 text                           null=YES
+  likes_count                  integer                        null=YES
+  comments_count               integer                        null=YES
+  tags                         ARRAY                          null=YES
+  created_at                   timestamp without time zone    null=YES
+  attachment_base64            text                           null=YES
+  attachment_name              character varying              null=YES
+  tagged_user_ids              ARRAY                          null=YES
+
+=== professor_availability ===
+  id                           character varying              null=NO
+  prof_id                      character varying              null=YES
+  day                          character varying              null=YES
+  time                         character varying              null=YES
+  created_at                   timestamp without time zone    null=YES
+
+=== professor_questions ===
+  id                           character varying              null=NO
+  prof_id                      character varying              null=YES
+  student_id                   character varying              null=YES
+  student_name                 character varying              null=YES
+  student_avatar               text                           null=YES
+  question                     text                           null=NO
+  answer                       text                           null=YES
+  answered_at                  timestamp without time zone    null=YES
+  created_at                   timestamp without time zone    null=YES
+
+=== professor_sessions ===
+  id                           character varying              null=NO
+  prof_id                      character varying              null=YES
+  prof_name                    character varying              null=YES
+  university                   character varying              null=YES
+  student_name                 character varying              null=YES
+  date                         character varying              null=YES
+  time                         character varying              null=YES
+  type                         character varying              null=YES
+  topic                        text                           null=YES
+  status                       character varying              null=YES
+  student_id                   character varying              null=YES
+  created_at                   timestamp without time zone    null=YES
+  notes                        text                           null=YES
+  completed_at                 timestamp without time zone    null=YES
+  rating                       integer                        null=YES
+  rating_comment               text                           null=YES
+  meeting_link                 text                           null=YES
+  response_message             text                           null=YES
+  rejection_reason             text                           null=YES
+
+=== professor_video_impressions ===
+  id                           character varying              null=NO
+  video_id                     character varying              null=YES
+  student_id                   character varying              null=YES
+  student_name                 character varying              null=YES
+  student_avatar               text                           null=YES
+  rating                       integer                        null=YES
+  comment                      text                           null=YES
+  created_at                   timestamp without time zone    null=YES
+
+=== professor_videos ===
+  id                           character varying              null=NO
+  prof_id                      character varying              null=YES
+  title                        character varying              null=NO
+  description                  text                           null=YES
+  video_url                    text                           null=NO
+  thumbnail_url                text                           null=YES
+  duration_minutes             integer                        null=YES
+  tags                         ARRAY                          null=YES
+  views                        integer                        null=YES
+  created_at                   timestamp without time zone    null=YES
+  price                        integer                        null=YES
+  currency                     character varying              null=YES
+
+=== project_activity ===
+  id                           character varying              null=NO
+  project_id                   character varying              null=YES
+  actor_id                     character varying              null=YES
+  actor_name                   character varying              null=YES
+  action                       character varying              null=NO
+  target_type                  character varying              null=YES
+  target_id                    character varying              null=YES
+  message                      text                           null=YES
+  created_at                   timestamp without time zone    null=YES
+
+=== project_advisors ===
+  project_id                   character varying              null=NO
+  prof_id                      character varying              null=NO
+  status                       character varying              null=YES
+  pitch                        text                           null=YES
+  requested_by                 character varying              null=YES
+  requested_at                 timestamp without time zone    null=YES
+  responded_at                 timestamp without time zone    null=YES
+
+=== project_docs ===
+  id                           character varying              null=NO
+  project_id                   character varying              null=YES
+  title                        character varying              null=YES
+  size                         character varying              null=YES
+  url                          text                           null=YES
+  created_at                   timestamp without time zone    null=YES
+
+=== project_meeting_attendees ===
+  meeting_id                   character varying              null=NO
+  user_id                      character varying              null=NO
+
+=== project_meetings ===
+  id                           character varying              null=NO
+  project_id                   character varying              null=YES
+  title                        character varying              null=NO
+  description                  text                           null=YES
+  meeting_date                 character varying              null=YES
+  meeting_time                 character varying              null=YES
+  duration_minutes             integer                        null=YES
+  link                         text                           null=YES
+  status                       character varying              null=YES
+  created_by_id                character varying              null=YES
+  created_by_name              character varying              null=YES
+  created_at                   timestamp without time zone    null=YES
+
+=== project_members ===
+  project_id                   character varying              null=NO
+  user_id                      character varying              null=NO
+  role                         character varying              null=YES
+
+=== project_messages ===
+  id                           character varying              null=NO
+  project_id                   character varying              null=YES
+  sender                       character varying              null=YES
+  avatar_base64                text                           null=YES
+  text                         text                           null=YES
+  created_at                   timestamp without time zone    null=YES
+  message_type                 character varying              null=YES
+  sender_id                    character varying              null=YES
+
+=== project_repos ===
+  id                           character varying              null=NO
+  project_id                   character varying              null=YES
+  name                         character varying              null=YES
+  url                          text                           null=YES
+  stars                        integer                        null=YES
+  created_at                   timestamp without time zone    null=YES
+
+=== project_requests ===
+  id                           character varying              null=NO
+  project_id                   character varying              null=YES
+  applicant_name               character varying              null=YES
+  university                   character varying              null=YES
+  skill                        character varying              null=YES
+  pitch                        text                           null=YES
+  status                       character varying              null=YES
+  created_at                   timestamp without time zone    null=YES
+  type                         character varying              null=YES
+  invited_by_id                character varying              null=YES
+  responded_at                 timestamp without time zone    null=YES
+  applicant_id                 character varying              null=YES
+
+=== project_tasks ===
+  id                           character varying              null=NO
+  project_id                   character varying              null=YES
+  title                        character varying              null=NO
+  description                  text                           null=YES
+  status                       character varying              null=YES
+  priority                     character varying              null=YES
+  assignee_id                  character varying              null=YES
+  assignee_name                character varying              null=YES
+  due_date                     character varying              null=YES
+  created_by_id                character varying              null=YES
+  created_by_name              character varying              null=YES
+  created_at                   timestamp without time zone    null=YES
+  updated_at                   timestamp without time zone    null=YES
+
+=== projects ===
+  id                           character varying              null=NO
+  owner_id                     character varying              null=YES
+  owner_name                   character varying              null=YES
+  owner_university             character varying              null=YES
+  owner_avatar_base64          text                           null=YES
+  title                        character varying              null=NO
+  description                  text                           null=NO
+  banner_base64                text                           null=YES
+  open_universities            ARRAY                          null=YES
+  skills_needed                ARRAY                          null=YES
+  seeking_investment           boolean                        null=YES
+  investment_goal              character varying              null=YES
+  traction_score               integer                        null=YES
+  created_at                   timestamp without time zone    null=YES
+  visibility                   character varying              null=YES
+  updated_at                   timestamp without time zone    null=YES
+
+=== session_reviews ===
+  id                           character varying              null=NO
+  session_id                   character varying              null=YES
+  prof_id                      character varying              null=YES
+  student_id                   character varying              null=YES
+  student_name                 character varying              null=YES
+  student_avatar               text                           null=YES
+  rating                       integer                        null=NO
+  comment                      text                           null=YES
+  created_at                   timestamp without time zone    null=YES
+
+=== universities ===
+  id                           integer                        null=NO
+  name                         character varying              null=NO
+  category                     character varying              null=YES
+  code                         character varying              null=YES
+  domain                       character varying              null=YES
+  pattern                      character varying              null=YES
+  created_at                   timestamp without time zone    null=YES
+
+=== user_connections ===
+  id                           integer                        null=NO
+  user_id                      character varying              null=YES
+  connected_user_id            character varying              null=YES
+  status                       character varying              null=YES
+  created_at                   timestamp without time zone    null=YES
+
+=== users ===
+  id                           character varying              null=NO
+  role                         character varying              null=NO
+  name                         character varying              null=NO
+  email                        character varying              null=NO
+  student_id                   character varying              null=YES
+  university_name              character varying              null=YES
+  faculty                      character varying              null=YES
+  degree                       character varying              null=YES
+  company                      character varying              null=YES
+  industry                     character varying              null=YES
+  title                        character varying              null=YES
+  bio                          text                           null=YES
+  avatar_base64                text                           null=YES
+  cover_base64                 text                           null=YES
+  verified                     boolean                        null=YES
+  verification_status          character varying              null=YES
+  verification_reason          text                           null=YES
+  hourly_rate                  character varying              null=YES
+  consultation_type            character varying              null=YES
+  created_at                   timestamp without time zone    null=YES
+  password                     character varying              null=YES
+  skills                       text                           null=YES
+  consultation_fee             integer                        null=YES
+  consultation_currency        character varying              null=YES
+  enterprise_profile           jsonb                          null=YES
+
+=== verification_queue ===
+  id                           character varying              null=NO
+  name                         character varying              null=YES
+  email                        character varying              null=YES
+  student_id                   character varying              null=YES
+  university                   character varying              null=YES
+  submitted_at                 character varying              null=YES
+  id_format_match              boolean                        null=YES
+  otp_verified                 boolean                        null=YES
+  ai_confidence                character varying              null=YES
+  flag_reason                  text                           null=YES
+  status                       character varying              null=YES
+  user_id                      character varying              null=YES
+  id_card_base64               text                           null=YES

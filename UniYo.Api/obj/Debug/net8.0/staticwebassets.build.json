@@ -1,0 +1,11 @@
+{
+  "Version": 1,
+  "Hash": "ahFgoyV2W/OVupBRGSy34LjSY+/GTbzyyPz1f03PX9Q=",
+  "Source": "UniYo.Api",
+  "BasePath": "_content/UniYo.Api",
+  "Mode": "Default",
+  "ManifestType": "Build",
+  "ReferencedProjectsConfiguration": [],
+  "DiscoveryPatterns": [],
+  "Assets": []
+}

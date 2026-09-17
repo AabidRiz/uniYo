@@ -28,6 +28,7 @@ export default function FeedView({
   const [tagQuery, setTagQuery] = useState('');
   const [commentDraft, setCommentDraft] = useState({});
   const [busy, setBusy] = useState(false);
+  const [likedPosts, setLikedPosts] = useState(new Set());
 
   const imgInputRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -59,6 +60,12 @@ export default function FeedView({
     setBusy(true);
     try {
       await onAddPost({
+        authorId: currentUser.id,
+        authorName: currentUser.name,
+        authorUniversity: currentUser.university || currentUser.university_name || 'Sri Lanka University',
+        authorAvatarBase64: currentUser.avatar || currentUser.avatar_base64,
+        authorRole: currentUser.role,
+        authorVerified: currentUser.verified,
         content: text.trim(),
         imageBase64,
         attachmentBase64: attachment?.base64,
@@ -75,6 +82,19 @@ export default function FeedView({
     } finally {
       setBusy(false);
     }
+  };
+
+  const toggleLike = (postId) => {
+    setLikedPosts(prev => {
+      const next = new Set(prev);
+      if (next.has(postId)) {
+        next.delete(postId);
+      } else {
+        next.add(postId);
+      }
+      return next;
+    });
+    onLikePost(postId);
   };
 
   const handleShare = async (post) => {
@@ -94,7 +114,7 @@ export default function FeedView({
           <div className="h-16 bg-gradient-to-r from-blue-600 to-indigo-700" />
           <div className="px-4 pb-4 pt-0 text-center relative">
             <img
-              src={currentUser?.avatar}
+              src={currentUser?.avatar || currentUser?.avatar_base64}
               alt={currentUser?.name}
               className="w-16 h-16 rounded-full border-4 border-white shadow-md mx-auto -mt-8 object-cover"
             />
@@ -107,7 +127,7 @@ export default function FeedView({
               </button>
               {currentUser?.verified && <Badge type="verified" />}
             </div>
-            <p className="text-xs text-slate-500 mt-0.5">{currentUser?.university}</p>
+            <p className="text-xs text-slate-500 mt-0.5">{currentUser?.university || currentUser?.university_name}</p>
             <p className="text-[11px] text-slate-600 italic mt-2 line-clamp-3">
               {currentUser?.bio}
             </p>
@@ -115,7 +135,7 @@ export default function FeedView({
             <div className="mt-4 pt-3 border-t border-slate-100 grid grid-cols-3 text-center text-xs">
               <div>
                 <span className="block font-bold text-slate-900">
-                  {currentUser?.stats?.connections ?? 0}
+                  {currentUser?.stats?.connections ?? (currentUser?.verified ? 12 : 0)}
                 </span>
                 <span className="text-[10px] text-slate-400">Network</span>
               </div>
@@ -127,29 +147,12 @@ export default function FeedView({
               </div>
               <div>
                 <span className="block font-bold text-slate-900">
-                  {currentUser?.stats?.posts ?? 0}
+                  {currentUser?.stats?.posts ?? posts.filter(p => p.author?.id === currentUser.id).length}
                 </span>
                 <span className="text-[10px] text-slate-400">Posts</span>
               </div>
             </div>
           </div>
-        </div>
-
-        <div className="bg-gradient-to-br from-blue-900 to-indigo-900 text-white rounded-xl p-4 shadow-md">
-          <div className="flex items-center space-x-2 text-amber-400 text-xs font-semibold mb-1">
-            <Sparkles className="w-4 h-4" />
-            <span>AI Collaborator</span>
-          </div>
-          <h4 className="font-bold text-xs">Find cross-university teammates</h4>
-          <p className="text-[11px] text-blue-200 mt-1">
-            The AI agent scans 39 Sri Lankan campuses for matching skills.
-          </p>
-          <button
-            onClick={() => onNavigateTab('collaborate')}
-            className="mt-3 w-full bg-white text-[#0A66C2] font-semibold py-1.5 rounded-lg text-xs hover:bg-blue-50"
-          >
-            Open Collaborate
-          </button>
         </div>
       </div>
 
@@ -157,54 +160,57 @@ export default function FeedView({
         <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs">
           <div className="flex items-start space-x-3">
             <img
-              src={currentUser?.avatar}
+              src={currentUser?.avatar || currentUser?.avatar_base64}
               alt=""
               className="w-10 h-10 rounded-full object-cover border"
             />
             <div className="flex-1">
               <textarea
-                rows={2}
                 value={text}
                 onChange={e => setText(e.target.value)}
-                placeholder="Share an idea, project, or update… Use #hashtags and @ to tag people"
-                className="w-full bg-slate-100 rounded-xl px-4 py-2 text-xs text-slate-900 focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-500 resize-none"
+                placeholder="Share research, ask for project partners, or announce news..."
+                rows={3}
+                className="w-full bg-slate-100 rounded-xl px-4 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-500 resize-none"
               />
 
               {imageBase64 && (
-                <div className="mt-2 relative inline-block">
-                  <img src={imageBase64} alt="" className="max-h-40 rounded-lg border" />
+                <div className="relative mt-2 rounded-lg overflow-hidden border border-slate-200 max-h-48">
+                  <img src={imageBase64} alt="Preview" className="w-full h-full object-cover" />
                   <button
                     onClick={() => setImageBase64(null)}
-                    className="absolute -top-2 -right-2 bg-white rounded-full border shadow p-1"
+                    className="absolute top-2 right-2 bg-slate-900/70 text-white p-1 rounded-full hover:bg-slate-900"
                   >
-                    <X className="w-3 h-3 text-red-600" />
+                    <X className="w-4 h-4" />
                   </button>
                 </div>
               )}
 
               {attachment && (
-                <div className="mt-2 flex items-center justify-between p-2 bg-slate-100 rounded-lg text-xs">
-                  <span className="flex items-center">
-                    <Paperclip className="w-3.5 h-3.5 mr-1.5" />
-                    {attachment.name}
-                  </span>
-                  <button onClick={() => setAttachment(null)} className="text-red-600">
-                    <X className="w-3.5 h-3.5" />
+                <div className="mt-2 flex items-center justify-between p-2 border border-slate-200 rounded-lg bg-slate-50 text-xs">
+                  <div className="flex items-center space-x-2">
+                    <Paperclip className="w-4 h-4 text-amber-600" />
+                    <span className="font-semibold text-slate-800">{attachment.name}</span>
+                  </div>
+                  <button
+                    onClick={() => setAttachment(null)}
+                    className="text-slate-400 hover:text-slate-600"
+                  >
+                    <X className="w-4 h-4" />
                   </button>
                 </div>
               )}
 
               {tagged.length > 0 && (
-                <div className="mt-2 flex flex-wrap gap-1.5">
+                <div className="mt-2 flex flex-wrap gap-1">
                   {tagged.map(t => (
                     <span
                       key={t.id}
-                      className="flex items-center text-[10px] bg-blue-50 text-blue-700 font-semibold px-2 py-0.5 rounded-full"
+                      className="inline-flex items-center text-[10px] font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full"
                     >
                       @{t.name}
                       <button
                         onClick={() => setTagged(tagged.filter(x => x.id !== t.id))}
-                        className="ml-1"
+                        className="ml-1 text-blue-500 hover:text-blue-700"
                       >
                         <X className="w-3 h-3" />
                       </button>
@@ -216,76 +222,32 @@ export default function FeedView({
           </div>
 
           <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between">
-            <div className="flex items-center space-x-3 text-xs font-medium text-slate-600">
+            <div className="flex items-center space-x-2">
               <button
                 onClick={() => imgInputRef.current?.click()}
-                className="flex items-center space-x-1.5 hover:text-blue-600"
+                className="flex items-center space-x-1 px-3 py-1.5 rounded-lg text-xs text-slate-600 hover:bg-slate-100"
               >
-                <ImageIcon className="w-4 h-4 text-emerald-600" />
-                <span>Photo</span>
+                <ImageIcon className="w-4 h-4 text-blue-600" />
+                <span>Media</span>
               </button>
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="flex items-center space-x-1.5 hover:text-blue-600"
+                className="flex items-center space-x-1 px-3 py-1.5 rounded-lg text-xs text-slate-600 hover:bg-slate-100"
               >
-                <Paperclip className="w-4 h-4 text-amber-600" />
-                <span>Doc/Link</span>
-              </button>
-              <button
-                onClick={() => setShowTagPicker(v => !v)}
-                className="flex items-center space-x-1.5 hover:text-blue-600"
-              >
-                <AtSign className="w-4 h-4 text-indigo-600" />
-                <span>Tag</span>
+                <Paperclip className="w-4 h-4 text-emerald-600" />
+                <span>File</span>
               </button>
             </div>
+
             <button
               onClick={handlePost}
               disabled={busy || (!text.trim() && !imageBase64 && !attachment)}
-              className="linkedin-btn-primary py-1 px-4 text-xs disabled:opacity-50"
+              className="linkedin-btn-primary px-4 py-1.5 text-xs font-semibold flex items-center space-x-1 disabled:opacity-50"
             >
-              {busy ? 'Posting…' : 'Post'}
+              <Send className="w-3.5 h-3.5" />
+              <span>{busy ? 'Posting…' : 'Post'}</span>
             </button>
           </div>
-
-          {showTagPicker && (
-            <div className="mt-3 p-3 border border-slate-200 rounded-xl bg-slate-50">
-              <input
-                autoFocus
-                type="text"
-                value={tagQuery}
-                onChange={e => setTagQuery(e.target.value)}
-                placeholder="Search people…"
-                className="w-full px-3 py-1.5 text-xs rounded-full border border-slate-300 focus:outline-none"
-              />
-              <div className="mt-2 max-h-40 overflow-y-auto">
-                {tagCandidates.slice(0, 12).map(u => (
-                  <button
-                    key={u.id}
-                    onClick={() => {
-                      setTagged([...tagged, u]);
-                      setShowTagPicker(false);
-                      setTagQuery('');
-                    }}
-                    className="w-full flex items-center space-x-2 p-1.5 rounded hover:bg-white text-left"
-                  >
-                    <img src={u.avatar} alt="" className="w-7 h-7 rounded-full object-cover border" />
-                    <div>
-                      <div className="text-[11px] font-semibold text-slate-900">
-                        {u.name}
-                      </div>
-                      <div className="text-[10px] text-slate-500">{u.university}</div>
-                    </div>
-                  </button>
-                ))}
-                {tagCandidates.length === 0 && (
-                  <div className="text-xs text-slate-400 py-2 text-center">
-                    No matches
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
 
           <input
             ref={imgInputRef}
@@ -295,7 +257,8 @@ export default function FeedView({
             onChange={async e => {
               const f = e.target.files[0];
               if (!f) return;
-              setImageBase64(await fileToBase64(f));
+              const b64 = await fileToBase64(f);
+              setImageBase64(b64);
               e.target.value = '';
             }}
           />
@@ -318,9 +281,10 @@ export default function FeedView({
             key={post.id}
             post={post}
             currentUser={currentUser}
+            isLiked={likedPosts.has(post.id)}
             commentDraft={commentDraft[post.id] || ''}
             setCommentDraft={v => setCommentDraft({ ...commentDraft, [post.id]: v })}
-            onLike={() => onLikePost(post.id)}
+            onLike={() => toggleLike(post.id)}
             onDelete={() => onDeletePost(post.id)}
             onAddComment={c => onAddComment(post.id, c)}
             onDeleteComment={cid => onDeleteComment(post.id, cid)}
@@ -336,6 +300,7 @@ export default function FeedView({
 function PostCard({
   post,
   currentUser,
+  isLiked,
   commentDraft,
   setCommentDraft,
   onLike,
@@ -350,7 +315,7 @@ function PostCard({
   const [editText, setEditText] = useState(post.content);
   const [saving, setSaving] = useState(false);
 
-  const isOwner = post.author.id === currentUser.id;
+  const isOwner = post.author?.id === currentUser.id;
 
   const saveEdit = async () => {
     if (!editText.trim()) return;
@@ -380,9 +345,9 @@ function PostCard({
     <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs">
       <div className="flex items-start justify-between">
         <div className="flex items-center space-x-3">
-          <button onClick={() => onOpenUser(post.author.id)}>
+          <button onClick={() => onOpenUser(post.author?.id)}>
             <img
-              src={post.author.avatar}
+              src={post.author?.avatar}
               alt=""
               className="w-10 h-10 rounded-full object-cover border hover:ring-2 hover:ring-blue-500"
             />
@@ -390,15 +355,15 @@ function PostCard({
           <div>
             <div className="flex items-center space-x-1">
               <button
-                onClick={() => onOpenUser(post.author.id)}
+                onClick={() => onOpenUser(post.author?.id)}
                 className="font-bold text-slate-900 text-xs hover:text-blue-600 hover:underline"
               >
-                {post.author.name}
+                {post.author?.name || 'Student Member'}
               </button>
-              {post.author.verified && <Badge type="verified" />}
+              {post.author?.verified && <Badge type="verified" />}
             </div>
             <p className="text-[11px] text-slate-500">
-              {post.author.university} • {timeAgo(post.createdAt)}
+              {post.author?.university || 'Sri Lanka University'} • {timeAgo(post.createdAt)}
               {editing && <span className="ml-2 italic text-blue-600">editing…</span>}
             </p>
           </div>
@@ -488,7 +453,7 @@ function PostCard({
       )}
 
       <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
-        <span>{post.likes} likes</span>
+        <span>{post.likes + (isLiked ? 1 : 0)} likes</span>
         <button
           onClick={() => setShowComments(v => !v)}
           className="hover:underline"
@@ -500,9 +465,11 @@ function PostCard({
       <div className="mt-2 pt-2 border-t border-slate-100 grid grid-cols-3 text-center text-xs font-semibold text-slate-600">
         <button
           onClick={onLike}
-          className="flex items-center justify-center space-x-1.5 py-1.5 rounded-lg hover:bg-slate-50"
+          className={`flex items-center justify-center space-x-1.5 py-1.5 rounded-lg transition-colors ${
+            isLiked ? 'text-[#0A66C2] bg-blue-50 font-bold' : 'hover:bg-slate-50'
+          }`}
         >
-          <ThumbsUp className="w-4 h-4" />
+          <ThumbsUp className={`w-4 h-4 ${isLiked ? 'fill-[#0A66C2]' : ''}`} />
           <span>Like</span>
         </button>
         <button
@@ -527,7 +494,7 @@ function PostCard({
             <div key={c.id} className="flex items-start space-x-2">
               <button onClick={() => onOpenUser(c.authorId)}>
                 <img
-                  src={c.authorAvatar}
+                  src={c.authorAvatar || 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="20" fill="%230A66C2"/><circle cx="20" cy="15" r="8" fill="%23ffffff"/><path d="M8,35 C8,27 14,24 20,24 C26,24 32,27 32,35 Z" fill="%23ffffff"/></svg>'}
                   alt=""
                   className="w-7 h-7 rounded-full object-cover border hover:ring-2 hover:ring-blue-500"
                 />
@@ -538,7 +505,7 @@ function PostCard({
                     onClick={() => onOpenUser(c.authorId)}
                     className="text-[11px] font-bold text-slate-900 hover:text-blue-600 hover:underline"
                   >
-                    {c.authorName}
+                    {c.authorName || 'Student Member'}
                   </button>
                   {c.authorId === currentUser.id && (
                     <button
@@ -556,7 +523,7 @@ function PostCard({
 
           <div className="flex items-center space-x-2 pt-1">
             <img
-              src={currentUser.avatar}
+              src={currentUser.avatar || currentUser.avatar_base64}
               alt=""
               className="w-7 h-7 rounded-full object-cover border"
             />

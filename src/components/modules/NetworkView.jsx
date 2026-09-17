@@ -18,8 +18,8 @@ export default function NetworkView({ currentUser, onOpenUser }) {
         api.getUsers('student'),
         api.getConnections(currentUser.id)
       ]);
-      setAll(users.filter(u => u.id !== currentUser.id));
-      setConnections(conns);
+      setAll((users || []).filter(u => u.id !== currentUser.id));
+      setConnections(conns || []);
     } catch (e) {
       console.error(e);
     } finally {
@@ -35,15 +35,18 @@ export default function NetworkView({ currentUser, onOpenUser }) {
 
   const handleConnect = async (other) => {
     setBusyId(other.id);
+    const isConn = connIds.has(other.id);
     try {
-      if (connIds.has(other.id)) {
+      if (isConn) {
+        setConnections(prev => prev.filter(c => c.id !== other.id));
         await api.disconnectUser(currentUser.id, other.id);
       } else {
+        setConnections(prev => [...prev, other]);
         await api.connectUser(currentUser.id, other.id);
       }
-      await load();
     } catch (e) {
       alert(e.message);
+      await load();
     } finally {
       setBusyId(null);
     }
@@ -71,7 +74,7 @@ export default function NetworkView({ currentUser, onOpenUser }) {
           </div>
           <h2 className="text-xl font-bold text-slate-900">Discover & Manage Network</h2>
           <p className="text-xs text-slate-500 mt-1">
-            Click any name to view their full profile and posts.
+            Connect with Sri Lankan peers across all 43 state and defense universities.
           </p>
         </div>
 
@@ -107,7 +110,7 @@ export default function NetworkView({ currentUser, onOpenUser }) {
       </div>
 
       {loading ? (
-        <div className="text-center text-slate-400 text-xs py-10">Loading…</div>
+        <div className="text-center text-slate-400 text-xs py-10">Loading network…</div>
       ) : filtered.length === 0 ? (
         <div className="text-center text-slate-400 text-xs py-10">
           {tab === 'connections'
@@ -127,7 +130,7 @@ export default function NetworkView({ currentUser, onOpenUser }) {
                   <div className="h-16 bg-gradient-to-r from-blue-600 to-indigo-700" />
                   <div className="px-5 pb-4 pt-0 text-center relative">
                     <img
-                      src={p.avatar}
+                      src={p.avatar || 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><circle cx="32" cy="32" r="32" fill="%230A66C2"/><circle cx="32" cy="24" r="12" fill="%23ffffff"/><path d="M12,54 C12,42 22,38 32,38 C42,38 52,42 52,54 Z" fill="%23ffffff"/></svg>'}
                       alt=""
                       className="w-16 h-16 rounded-full border-4 border-white shadow-md mx-auto -mt-8 object-cover"
                     />
@@ -141,27 +144,14 @@ export default function NetworkView({ currentUser, onOpenUser }) {
                       {p.verified && <Badge type="verified" />}
                     </div>
                     <p className="text-xs text-blue-600 font-semibold mt-0.5 line-clamp-1">
-                      {p.degree}
+                      {p.degree || 'BSc Undergraduate'}
                     </p>
                     <p className="text-[11px] text-slate-500 line-clamp-1">
-                      {p.university}
+                      {p.university || 'Sri Lanka University'}
                     </p>
                     <p className="mt-3 text-xs text-slate-600 italic line-clamp-3">
-                      "{p.bio}"
+                      "{p.bio || 'Undergraduate student building tech solutions.'}"
                     </p>
-
-                    {(p.skills || []).length > 0 && (
-                      <div className="mt-3 flex flex-wrap justify-center gap-1">
-                        {p.skills.slice(0, 4).map((s, i) => (
-                          <span
-                            key={i}
-                            className="text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full"
-                          >
-                            {s}
-                          </span>
-                        ))}
-                      </div>
-                    )}
                   </div>
                 </div>
 
@@ -170,7 +160,7 @@ export default function NetworkView({ currentUser, onOpenUser }) {
                     onClick={() => onOpenUser(p.id)}
                     className="flex-1 py-2 text-xs font-bold rounded-xl border border-slate-300 text-slate-700 hover:bg-white flex items-center justify-center"
                   >
-                    <Eye className="w-3.5 h-3.5 mr-1" /> View
+                    <Eye className="w-3.5 h-3.5 mr-1" /> View Profile
                   </button>
 
                   {tab === 'discover' ? (
@@ -180,13 +170,13 @@ export default function NetworkView({ currentUser, onOpenUser }) {
                       className={`flex-1 py-2 rounded-xl text-xs font-bold flex items-center justify-center space-x-1 ${
                         isConn
                           ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                          : 'linkedin-btn-outline hover:bg-blue-50'
+                          : 'linkedin-btn-primary'
                       } disabled:opacity-50`}
                     >
                       {isConn ? (
                         <>
                           <UserCheck className="w-3.5 h-3.5 mr-1 text-emerald-600" />
-                          Connected
+                          Connected ✓
                         </>
                       ) : (
                         <>
