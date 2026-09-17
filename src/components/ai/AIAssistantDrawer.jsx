@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Bot, Send, Terminal, X, Users, ShieldCheck, Sparkles, MessageSquare } from 'lucide-react';
+import { api } from '../../api/client';
 
 const AGENT_BY_ROLE = {
   student: {
@@ -44,32 +45,31 @@ export default function AIAssistantDrawer({ isOpen, onClose, currentUser }) {
 
   if (!isOpen) return null;
 
-  const send = (e) => {
+  const send = async (e) => {
     e.preventDefault();
     if (!input.trim()) return;
+
     const userMsg = { sender: 'user', text: input.trim() };
     setMessages(prev => [...prev, userMsg]);
     setInput('');
     setThinking(true);
 
-    setTimeout(() => {
-      let reply, tools = [];
-      if (agent.key === 'collaborator') {
-        reply = `Scanning verified students from Sri Lankan universities matching your project needs…\n\nTop matches found:\n• Nethmi Silva (Moratuwa) — Robotics, PyTorch, ROS2\n• Dilshan Fernando (Colombo) — LLMs, NLP, FastAPI\n\nWould you like me to draft collaboration invites?`;
-        tools = ['search_student_profiles', 'filter_verified_only', 'rank_skill_fit'];
-      } else if (agent.key === 'mentor') {
-        reply = `I can help you draft advisement notes or prepare office-hour summaries. What topic are you working on?`;
-        tools = ['load_faculty_notes'];
-      } else if (agent.key === 'investment') {
-        reply = `Reviewing student projects seeking investment. Two stand out:\n• AgriSense LK — Traction 92/100, IoT + ML for tea estates\n• MedAssist AI — Traction 88/100, clinical decision support`;
-        tools = ['calculate_traction_score', 'match_investor_thesis'];
-      } else {
-        reply = `Verification queue scan complete. 2 pending student IDs need manual review. ID card photos are attached to each queue row.`;
-        tools = ['scan_verification_queue'];
-      }
-      setMessages(prev => [...prev, { sender: 'agent', text: reply, toolsCalled: tools }]);
+    try {
+      const res = await api.aiChat(currentUser?.role || 'student', input.trim());
+      setMessages(prev => [...prev, {
+        sender: 'agent',
+        text: res.response || '(no reply)',
+        toolsCalled: (res.sources || []).map(s => s.type)
+      }]);
+    } catch (err) {
+      setMessages(prev => [...prev, {
+        sender: 'agent',
+        text: `⚠️ ${err.message}`,
+        toolsCalled: []
+      }]);
+    } finally {
       setThinking(false);
-    }, 1100);
+    }
   };
 
   const Icon = agent.icon;
@@ -105,10 +105,10 @@ export default function AIAssistantDrawer({ isOpen, onClose, currentUser }) {
             </div>
             {m.toolsCalled && m.toolsCalled.length > 0 && (
               <div className="mt-1.5 p-2 bg-slate-900 text-slate-200 rounded-lg text-[10px] font-mono max-w-[85%]">
-                <span className="text-amber-400 font-bold">⚡ Tools:</span>
+                <span className="text-amber-400 font-bold">⚡ Sources:</span>
                 <ul className="mt-1 space-y-0.5">
                   {m.toolsCalled.map((t, j) => (
-                    <li key={j}><Terminal className="w-3 h-3 text-blue-400 mr-1 inline" />{t}()</li>
+                    <li key={j}><Terminal className="w-3 h-3 text-blue-400 mr-1 inline" />{t}</li>
                   ))}
                 </ul>
               </div>

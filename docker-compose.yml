@@ -1,0 +1,16 @@
+﻿services:
+  pgvector-db:
+    image: pgvector/pgvector:pg16
+    container_name: uniyo_pgvector
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 1234
+      POSTGRES_DB: uniyo_rag
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgvector_data:/var/lib/postgresql/data
+
+volumes:
+  pgvector_data:

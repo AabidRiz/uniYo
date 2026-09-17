@@ -18,6 +18,12 @@ const pool = new Pool({
   database: 'uniyo_db'
 });
 
+
+
+require('dotenv').config();
+const { initRagSchema } = require('./rag/db.cjs');
+const ragRouter = require('./rag/routes.cjs');
+app.use('/api/ai', ragRouter);
 const asyncRoute = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
 // ---------- AUTO-MIGRATE ON BOOT ----------
@@ -1645,11 +1651,11 @@ app.use((err, req, res, next) => {
 });
 
 // ---------- BOOT ----------
-ensureSchema()
+Promise.all([ensureSchema(), initRagSchema()])
   .then(() => {
     app.listen(PORT, () => console.log(`🚀 UniYO backend on http://localhost:${PORT}`));
   })
   .catch(err => {
-    console.error('❌ Migration failed:', err.message);
+    console.error('❌ Boot failed:', err.message);
     process.exit(1);
   });

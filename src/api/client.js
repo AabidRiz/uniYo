@@ -149,8 +149,12 @@ export const api = {
   updateInvestmentMeeting: (id, d) => request(`/investment-meetings/${id}`, { method: 'PUT', body: d }),
 
   // Admin
+  // AI Chat (RAG)
+  aiChat: (role, message) => request('/ai/chat', { method: 'POST', body: { role, message } }),
+
+  // Admin
   getVerificationQueue: () => request('/admin/verification-queue'),
-  verifyStudent: (id, action) => request(`/admin/verify/${id}`, { method: 'POST', body: { action } })
+    verifyStudent: (id, action) => request(`/admin/verify/${id}`, { method: 'POST', body: { action } })
   ,getAdminQueue: () => request('/admin/verification-queue')
   ,verifyUser: (id, action) => request(`/admin/verify-user/${id}`, { method: 'POST', body: { action } })
   ,getAdminInvestments: () => request('/admin/investments')
