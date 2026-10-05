@@ -1,0 +1,31 @@
+﻿name: Backend CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore API
+        run: dotnet restore UniYo.Api/UniYo.Api.csproj
+
+      - name: Build API
+        run: dotnet build UniYo.Api/UniYo.Api.csproj --no-restore
+
+      - name: Restore Tests
+        run: dotnet restore backend-tests/UniYO.Tests/UniYO.Tests.csproj
+
+      - name: Run Tests
+        run: dotnet test backend-tests/UniYO.Tests/UniYO.Tests.csproj --no-restore
