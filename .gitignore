@@ -26,3 +26,6 @@ dist-ssr
 server/.env
 node_modules/
 */node_modules/
+
+UniYo.Api/obj/
+UniYo.Api/bin/
