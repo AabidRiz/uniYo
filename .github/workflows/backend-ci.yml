@@ -10,6 +10,21 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: uniyo_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - uses: actions/checkout@v4
 
@@ -29,3 +44,7 @@ jobs:
 
       - name: Run Tests
         run: dotnet test backend-tests/UniYO.Tests/UniYO.Tests.csproj --no-restore
+        env:
+          DATABASE_URL: "Host=localhost;Database=uniyo_test;Username=postgres;Password=postgres"
+          ConnectionStrings__DefaultConnection: "Host=localhost;Database=uniyo_test;Username=postgres;Password=postgres"
+          JWT__Key: "ci-test-key-not-real"

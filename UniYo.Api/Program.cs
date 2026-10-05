@@ -1,6 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
 using UniYo.Api.Data;
+using UniYo.Api.Entities;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -22,20 +23,18 @@ builder.Services.AddScoped<UniYo.Api.Services.ActivityService>();
 builder.Services.AddScoped<UniYo.Api.Services.ProjectService>();
 builder.Services.AddScoped<UniYo.Api.Services.RagService>();
 
-// HttpClient for RagService (Groq + sidecar)
 builder.Services.AddHttpClient<UniYo.Api.Services.RagService>();
 
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
     {
-       policy.WithOrigins(
-    "http://localhost:5173",
-    "https://uniyo.vercel.app",
-    "https://uniyo-eight.vercel.app",
-    "https://uniyo-aabidriz.vercel.app"
-).AllowAnyHeader().AllowAnyMethod();
-
+        policy.WithOrigins(
+            "http://localhost:5173",
+            "https://uniyo.vercel.app",
+            "https://uniyo-eight.vercel.app",
+            "https://uniyo-aabidriz.vercel.app"
+        ).AllowAnyHeader().AllowAnyMethod();
     });
 });
 
@@ -53,19 +52,58 @@ builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
-app.UseCors("AllowAll");
+// ============================================================
+// AUTO-CREATE SCHEMA + SEED (for tests + fresh deployments)
+// ============================================================
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<UniYoDbContext>();
+    db.Database.EnsureCreated();
 
+    // Seed universities if empty (int auto-increment Id)
+    if (!db.Universities.Any())
+    {
+        db.Universities.AddRange(
+            new University { Name = "SLIIT",                    Category = "Non-State/Private", Code = "SLIIT", Domain = "sliit.lk", Pattern = @"^IT-\d{8}$" },
+            new University { Name = "University of Colombo",    Category = "UGC State",         Code = "UOC",   Domain = "cmb.ac.lk", Pattern = @"^UOC-\d{6}$" },
+            new University { Name = "University of Moratuwa",   Category = "UGC State",         Code = "UOM",   Domain = "uom.lk",    Pattern = @"^UOM-\d{6}$" },
+            new University { Name = "University of Peradeniya", Category = "UGC State",         Code = "UOP",   Domain = "pdn.ac.lk", Pattern = @"^UOP-\d{6}$" },
+            new University { Name = "NSBM Green University",    Category = "Non-State/Private", Code = "NSBM",  Domain = "nsbm.ac.lk", Pattern = @"^NSBM-\d{6}$" }
+        );
+        db.SaveChanges();
+    }
+
+    // Seed demo student (User.Id is string)
+    if (!db.Users.Any(u => u.Email == "kusal.p@sliit.lk"))
+    {
+        db.Users.Add(new User
+        {
+            Id = "usr_student_demo",
+            Role = "student",
+            Name = "Kusal Perera",
+            Email = "kusal.p@sliit.lk",
+            Password = "1234",
+            StudentId = "IT-20260001",
+            UniversityName = "SLIIT",
+            Faculty = "Computing",
+            Degree = "B.Sc (Hons) Software Engineering",
+            Bio = "Demo student for testing.",
+            Verified = true,
+            VerificationStatus = "verified",
+            VerificationReason = "Demo seed account.",
+            AvatarBase64 = "data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100\" height=\"100\"><circle cx=\"50\" cy=\"50\" r=\"50\" fill=\"%230A66C2\"/></svg>",
+            CreatedAt = DateTime.UtcNow
+        });
+        db.SaveChanges();
+    }
+}
+
+app.UseCors("AllowAll");
 app.UseSwagger();
 app.UseSwaggerUI();
-
 app.MapControllers();
 
-Console.WriteLine("UniYO ASP.NET Core backend on http://localhost:5000");
+Console.WriteLine($"UniYO ASP.NET Core backend on http://localhost:{port}");
 app.Run();
-
-
-
-
-
 
 public partial class Program { }
