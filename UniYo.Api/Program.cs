@@ -62,3 +62,10 @@ app.MapControllers();
 
 Console.WriteLine("UniYO ASP.NET Core backend on http://localhost:5000");
 app.Run();
+
+
+
+
+
+
+public partial class Program { }
