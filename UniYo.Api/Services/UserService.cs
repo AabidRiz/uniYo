@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using UniYo.Api.Data;
 using UniYo.Api.Entities;
 
@@ -32,10 +32,10 @@ public class UserService
             industry = u.Industry,
             title = u.Title,
             bio = u.Bio,
-            avatar = u.AvatarBase64,
-            avatar_base64 = u.AvatarBase64,
-            cover = u.CoverBase64,
-            cover_base64 = u.CoverBase64,
+            avatar = TruncateBase64(u.AvatarBase64),
+            avatar_base64 = TruncateBase64(u.AvatarBase64),
+            cover = (string?)null,
+            cover_base64 = (string?)null,
             skills = string.IsNullOrEmpty(u.Skills)
                 ? new List<string>()
                 : u.Skills.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToList(),
@@ -64,4 +64,11 @@ public class UserService
         var u = await _db.Users.FindAsync(id);
         return u == null ? null : await BuildUserAsync(u);
     }
+
+    private static string? TruncateBase64(string? b64)
+    {
+        if (string.IsNullOrEmpty(b64)) return null;
+        return b64.Length <= 50000 ? b64 : null;
+    }
 }
+

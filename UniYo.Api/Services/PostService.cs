@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using UniYo.Api.Data;
 using UniYo.Api.Entities;
 
@@ -34,11 +34,9 @@ public class PostService
             },
             authorId = p.AuthorId,
             content = p.Content,
-            image = p.ImageBase64,
-            imageBase64 = p.ImageBase64,
-            attachment = string.IsNullOrEmpty(p.AttachmentBase64)
-                ? null
-                : new { base64 = p.AttachmentBase64, name = p.AttachmentName },
+            image = TruncateBase64(p.ImageBase64, 100000),
+            imageBase64 = TruncateBase64(p.ImageBase64, 100000),
+            attachment = (object?)null,
             tags = p.Tags ?? Array.Empty<string>(),
             taggedUserIds = p.TaggedUserIds ?? Array.Empty<string>(),
             likes = likesCount,
@@ -58,4 +56,11 @@ public class PostService
             })
         };
     }
+
+    private static string? TruncateBase64(string? b64, int maxLength)
+    {
+        if (string.IsNullOrEmpty(b64)) return null;
+        return b64.Length <= maxLength ? b64 : null;
+    }
 }
+
