@@ -38,6 +38,14 @@ public class AuthController : ControllerBase
         if (string.IsNullOrWhiteSpace(dto.Email) || string.IsNullOrWhiteSpace(dto.Name))
             return BadRequest(new { error = "Name and email required" });
 
+        // Password strength validation
+        if (string.IsNullOrWhiteSpace(dto.Password) || dto.Password.Length < 8
+            || !Regex.IsMatch(dto.Password, "[A-Za-z]")
+            || !Regex.IsMatch(dto.Password, "[0-9]"))
+        {
+            return BadRequest(new { error = "Password must be 8+ characters with at least one letter and one number." });
+        }
+
         var exists = await _db.Users.AnyAsync(u => u.Email == dto.Email);
         if (exists) return Conflict(new { error = "Email already registered" });
 
@@ -130,3 +138,4 @@ public class AuthController : ControllerBase
         return StatusCode(201, await _users.BuildUserAsync(newUser));
     }
 }
+
