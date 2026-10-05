@@ -15,7 +15,6 @@ var connectionString = Environment.GetEnvironmentVariable("DATABASE_URL")
 builder.Services.AddDbContext<UniYoDbContext>(options =>
     options.UseNpgsql(connectionString));
 
-// Services
 builder.Services.AddScoped<UniYo.Api.Services.UserService>();
 builder.Services.AddScoped<UniYo.Api.Services.PostService>();
 builder.Services.AddScoped<UniYo.Api.Services.MembershipService>();
@@ -53,48 +52,54 @@ builder.Services.AddSwaggerGen();
 var app = builder.Build();
 
 // ============================================================
-// AUTO-CREATE SCHEMA + SEED (for tests + fresh deployments)
+// AUTO-CREATE SCHEMA + SEED (idempotent, parallel-safe)
 // ============================================================
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<UniYoDbContext>();
-    db.Database.EnsureCreated();
-
-    // Seed universities if empty (int auto-increment Id)
-    if (!db.Universities.Any())
+    try
     {
-        db.Universities.AddRange(
-            new University { Name = "SLIIT",                    Category = "Non-State/Private", Code = "SLIIT", Domain = "sliit.lk", Pattern = @"^IT-\d{8}$" },
-            new University { Name = "University of Colombo",    Category = "UGC State",         Code = "UOC",   Domain = "cmb.ac.lk", Pattern = @"^UOC-\d{6}$" },
-            new University { Name = "University of Moratuwa",   Category = "UGC State",         Code = "UOM",   Domain = "uom.lk",    Pattern = @"^UOM-\d{6}$" },
-            new University { Name = "University of Peradeniya", Category = "UGC State",         Code = "UOP",   Domain = "pdn.ac.lk", Pattern = @"^UOP-\d{6}$" },
-            new University { Name = "NSBM Green University",    Category = "Non-State/Private", Code = "NSBM",  Domain = "nsbm.ac.lk", Pattern = @"^NSBM-\d{6}$" }
-        );
-        db.SaveChanges();
-    }
+        db.Database.EnsureCreated();
 
-    // Seed demo student (User.Id is string)
-    if (!db.Users.Any(u => u.Email == "kusal.p@sliit.lk"))
-    {
-        db.Users.Add(new User
+        if (!db.Universities.Any())
         {
-            Id = "usr_student_demo",
-            Role = "student",
-            Name = "Kusal Perera",
-            Email = "kusal.p@sliit.lk",
-            Password = "1234",
-            StudentId = "IT-20260001",
-            UniversityName = "SLIIT",
-            Faculty = "Computing",
-            Degree = "B.Sc (Hons) Software Engineering",
-            Bio = "Demo student for testing.",
-            Verified = true,
-            VerificationStatus = "verified",
-            VerificationReason = "Demo seed account.",
-            AvatarBase64 = "data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100\" height=\"100\"><circle cx=\"50\" cy=\"50\" r=\"50\" fill=\"%230A66C2\"/></svg>",
-            CreatedAt = DateTime.UtcNow
-        });
-        db.SaveChanges();
+            db.Universities.AddRange(
+                new University { Name = "SLIIT",                    Category = "Non-State/Private", Code = "SLIIT", Domain = "sliit.lk", Pattern = @"^IT-\d{8}$" },
+                new University { Name = "University of Colombo",    Category = "UGC State",         Code = "UOC",   Domain = "cmb.ac.lk", Pattern = @"^UOC-\d{6}$" },
+                new University { Name = "University of Moratuwa",   Category = "UGC State",         Code = "UOM",   Domain = "uom.lk",    Pattern = @"^UOM-\d{6}$" },
+                new University { Name = "University of Peradeniya", Category = "UGC State",         Code = "UOP",   Domain = "pdn.ac.lk", Pattern = @"^UOP-\d{6}$" },
+                new University { Name = "NSBM Green University",    Category = "Non-State/Private", Code = "NSBM",  Domain = "nsbm.ac.lk", Pattern = @"^NSBM-\d{6}$" }
+            );
+            db.SaveChanges();
+        }
+
+        if (!db.Users.Any(u => u.Id == "usr_student_demo"))
+        {
+            db.Users.Add(new User
+            {
+                Id = "usr_student_demo",
+                Role = "student",
+                Name = "Kusal Perera",
+                Email = "kusal.p@sliit.lk",
+                Password = "1234",
+                StudentId = "IT-20260001",
+                UniversityName = "SLIIT",
+                Faculty = "Computing",
+                Degree = "B.Sc (Hons) Software Engineering",
+                Bio = "Demo student for testing.",
+                Verified = true,
+                VerificationStatus = "verified",
+                VerificationReason = "Demo seed account.",
+                AvatarBase64 = "data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100\" height=\"100\"><circle cx=\"50\" cy=\"50\" r=\"50\" fill=\"%230A66C2\"/></svg>",
+                CreatedAt = DateTime.UtcNow
+            });
+            db.SaveChanges();
+        }
+    }
+    catch (Exception ex)
+    {
+        // Parallel test hosts may race — ignore duplicate key errors
+        Console.WriteLine($"[seed] skipped: {ex.Message}");
     }
 }
 

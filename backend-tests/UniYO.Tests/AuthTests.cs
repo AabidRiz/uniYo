@@ -34,16 +34,19 @@ public class AuthTests : IClassFixture<WebApplicationFactory<Program>>
     [Fact]
     public async Task Register_WithWeakPassword_ReturnsBadRequest()
     {
+        var uniqueEmail = $"weak_{Guid.NewGuid():N}@sliit.lk";
         var payload = new
         {
             role = "student",
             name = "Test User",
-            email = "weakpass@sliit.lk",
+            email = uniqueEmail,
             password = "abc",
             university = "SLIIT",
             studentId = "IT-20260001"
         };
         var res = await _client.PostAsJsonAsync("/api/auth/register", payload);
-        res.StatusCode.Should().BeOneOf(HttpStatusCode.BadRequest, HttpStatusCode.Conflict);
+        res.StatusCode.Should().BeOneOf(
+            HttpStatusCode.BadRequest,
+            HttpStatusCode.Conflict);
     }
 }
