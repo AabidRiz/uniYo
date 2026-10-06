@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, CheckCircle2, Clock, Sparkles } from 'lucide-react';
+import { Calendar, Clock } from 'lucide-react';
 import { api } from '../../../api/client';
 
 export default function BizMeetingsView({ currentUser }) {
@@ -35,7 +35,9 @@ export default function BizMeetingsView({ currentUser }) {
           <span>Active Investor Pitch Schedule ({investments.length})</span>
         </h3>
 
-        {investments.length === 0 ? (
+        {loading ? (
+          <div className="text-center py-10 text-slate-400 text-xs">Loading pitch meetings...</div>
+        ) : investments.length === 0 ? (
           <div className="text-center py-10 text-slate-400 text-xs">
             No pitch meetings scheduled yet. Discover student ideas and request a meeting!
           </div>

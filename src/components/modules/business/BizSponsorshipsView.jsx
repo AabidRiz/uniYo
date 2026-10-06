@@ -1,5 +1,5 @@
 import React from 'react';
-import { DollarSign, Award, CheckCircle2, Sparkles } from 'lucide-react';
+import { Award, CheckCircle2 } from 'lucide-react';
 
 export default function BizSponsorshipsView({ currentUser }) {
   return (
