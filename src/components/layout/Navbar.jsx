@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import {
   Home, Users, Briefcase, GraduationCap,
   Bot, LogOut, ShieldCheck, Network, Bell,
@@ -56,6 +56,7 @@ export default function Navbar({
     if (role === 'student') return [
       { id: 'feed', label: 'Home', icon: Home },
       { id: 'collaborate', label: 'Collaborate', icon: Users },
+      { id: 'agent_studio', label: 'AI Studio', icon: Bot },
       { id: 'professors', label: 'Professors', icon: GraduationCap },
       { id: 'business', label: 'Jobs', icon: Briefcase },
       { id: 'network', label: 'Network', icon: Network },

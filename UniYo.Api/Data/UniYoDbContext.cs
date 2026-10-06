@@ -37,6 +37,8 @@ public class UniYoDbContext : DbContext
     public DbSet<InvestmentMeeting> InvestmentMeetings => Set<InvestmentMeeting>();
     public DbSet<VerificationQueueItem> VerificationQueues => Set<VerificationQueueItem>();
     public DbSet<AdminComplaint> AdminComplaints => Set<AdminComplaint>();
+    public DbSet<AgentWorkflow> AgentWorkflows => Set<AgentWorkflow>();
+    public DbSet<AgentStep> AgentSteps => Set<AgentStep>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -111,3 +113,4 @@ public class UniYoDbContext : DbContext
         base.OnModelCreating(b);
     }
 }
+

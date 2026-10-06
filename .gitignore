@@ -41,3 +41,19 @@ test-body.json
 test-collab.json
 test.json
 warmup.json
+
+# Test scratch files
+ask.json
+chat-body.json
+groq-test.json
+groqtest.json
+projects.json
+start-agent.json
+test-body.json
+test-collab.json
+test.json
+warmup.json
+body.json
+meta.json
+prod-meta.json
+wf.json

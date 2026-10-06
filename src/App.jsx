@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+﻿import React, { useState, useEffect, useCallback } from 'react';
 import Navbar from './components/layout/Navbar';
 import AuthPortal from './components/auth/AuthPortal';
 import FeedView from './components/modules/FeedView';
@@ -10,8 +10,8 @@ import NetworkView from './components/modules/NetworkView';
 import ProfileView from './components/modules/ProfileView';
 import AIAssistantDrawer from './components/ai/AIAssistantDrawer';
 import UserProfileView from './components/profile/UserProfileView';
+import AgentStudio from './components/agentStudio/AgentStudio';
 
-// Professor views
 import ProfDashboardView from './components/modules/professor/ProfDashboardView';
 import ProfCalendarView from './components/modules/professor/ProfCalendarView';
 import ProfCoursesView from './components/modules/professor/ProfCoursesView';
@@ -69,14 +69,12 @@ export default function App() {
     loadAll();
   }, [loadAll]);
 
-  // Force activeTab to be valid for the current user's role.
-  // This prevents stale tabs like 'prof_dashboard' from showing when a student logs in.
   useEffect(() => {
     if (!activeUser) return;
     const validTabs = {
-      student: ['feed', 'collaborate', 'professors', 'business', 'network', 'profile'],
-      professor: ['feed', 'prof_dashboard', 'prof_calendar', 'prof_courses', 'prof_questions', 'prof_advised', 'prof_impressions', 'collaborate', 'profile'],
-      business: ['feed', 'business', 'profile'],
+      student: ['feed', 'collaborate', 'professors', 'business', 'network', 'profile', 'agent_studio'],
+      professor: ['feed', 'prof_dashboard', 'prof_calendar', 'prof_courses', 'prof_questions', 'prof_advised', 'prof_impressions', 'collaborate', 'profile', 'agent_studio'],
+      business: ['feed', 'business', 'profile', 'agent_studio'],
       admin: ['admin_dashboard']
     };
     const allowed = validTabs[activeUser.role] || ['feed'];
@@ -196,6 +194,9 @@ export default function App() {
           />
         ) : (
           <>
+            {/* AI STUDIO */}
+            {activeTab === 'agent_studio' && <AgentStudio />}
+
             {/* STUDENT VIEWS */}
             {activeTab === 'feed' && activeUser?.role === 'student' && (
               <FeedView
@@ -239,6 +240,7 @@ export default function App() {
                 onOpenUser={openUserProfile}
               />
             )}
+
             {activeTab === 'collaborate' && (activeUser?.role === 'student' || activeUser?.role === 'professor') && (
               <CollaborateView
                 currentUser={activeUser}
