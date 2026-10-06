@@ -2,6 +2,7 @@
 using System.Text.Json;
 using UniYo.Api.Data;
 using UniYo.Api.Entities;
+using UniYo.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -21,6 +22,16 @@ builder.Services.AddScoped<UniYo.Api.Services.MembershipService>();
 builder.Services.AddScoped<UniYo.Api.Services.ActivityService>();
 builder.Services.AddScoped<UniYo.Api.Services.ProjectService>();
 builder.Services.AddScoped<UniYo.Api.Services.RagService>();
+builder.Services.AddScoped<UniYo.Api.Services.MatchingService>();
+// ---- Agent Workflow Services ----
+builder.Services.AddScoped<UniYo.Api.Services.Agents.AgentLlmService>();
+builder.Services.AddScoped<UniYo.Api.Services.Agents.CollaboratorAgent>();
+builder.Services.AddScoped<UniYo.Api.Services.Agents.BusinessAgent>();
+builder.Services.AddScoped<UniYo.Api.Services.Agents.ProfessorAgent>();
+builder.Services.AddScoped<UniYo.Api.Services.Agents.ValidatorAgent>();
+builder.Services.AddScoped<UniYo.Api.Services.Agents.AgentOrchestrator>();
+builder.Services.AddHttpClient<UniYo.Api.Services.Agents.AgentLlmService>();
+
 
 builder.Services.AddHttpClient<UniYo.Api.Services.RagService>();
 
@@ -60,6 +71,45 @@ using (var scope = app.Services.CreateScope())
     try
     {
         db.Database.EnsureCreated();
+        // Ensure agent workflow tables exist
+        db.Database.ExecuteSqlRaw(@"
+            CREATE TABLE IF NOT EXISTS agent_workflows (
+                id UUID PRIMARY KEY,
+                project_id TEXT NOT NULL,
+                objective TEXT NOT NULL,
+                initiator_id TEXT NOT NULL,
+                role TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'planning',
+                plan JSONB,
+                analysis JSONB,
+                endorsement JSONB,
+                validation JSONB,
+                approval_status TEXT DEFAULT 'none',
+                questionnaire JSONB,
+                approval_actor_id TEXT,
+                approval_id TEXT,
+                final_outcome JSONB,
+                errors JSONB DEFAULT '[]',
+                duration_ms INT,
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW()
+            );
+        ");
+        db.Database.ExecuteSqlRaw(@"
+            CREATE TABLE IF NOT EXISTS agent_steps (
+                id UUID PRIMARY KEY,
+                workflow_id UUID REFERENCES agent_workflows(id) ON DELETE CASCADE,
+                agent_name TEXT NOT NULL,
+                step_number INT NOT NULL,
+                input JSONB,
+                output JSONB,
+                tools_called JSONB,
+                duration_ms INT,
+                status TEXT,
+                error TEXT,
+                created_at TIMESTAMP DEFAULT NOW()
+            );
+        ");
 
         if (!db.Universities.Any())
         {
@@ -73,7 +123,7 @@ using (var scope = app.Services.CreateScope())
             db.SaveChanges();
         }
 
-        if (!db.Users.Any(u => u.Id == "usr_student_demo"))
+        if (!db.Users.Any(u => u.Id == "usr_student_demo" || u.Email == "kusal.p@sliit.lk"))
         {
             db.Users.Add(new User
             {
@@ -95,11 +145,46 @@ using (var scope = app.Services.CreateScope())
             });
             db.SaveChanges();
         }
+
     }
     catch (Exception ex)
     {
         // Parallel test hosts may race — ignore duplicate key errors
         Console.WriteLine($"[seed] skipped: {ex.Message}");
+    }
+
+    // === V2 SEED === (outside outer try)
+    try
+    {
+        var profCount = db.Users.Count(u => u.Role == "professor");
+        var studCount = db.Users.Count(u => u.Role == "student");
+        var invCount  = db.Users.Count(u => u.Role == "business");
+        Console.WriteLine($"[seed v2] Before: prof={profCount}, stud={studCount}, inv={invCount}");
+
+        if (profCount < 50)
+        {
+            db.Users.AddRange(SeedDataV2.GenerateProfessors());
+            db.SaveChanges();
+            Console.WriteLine("[seed v2] Added 50 professors");
+        }
+
+        if (studCount < 70)
+        {
+            db.Users.AddRange(SeedDataV2.GenerateStudents());
+            db.SaveChanges();
+            Console.WriteLine("[seed v2] Added 30 students");
+        }
+
+        if (invCount < 60)
+        {
+            db.Users.AddRange(SeedDataV2.GenerateInvestors());
+            db.SaveChanges();
+            Console.WriteLine("[seed v2] Added 50 investors");
+        }
+    }
+    catch (Exception ex2)
+    {
+        Console.WriteLine($"[seed v2] skipped: {ex2.Message}");
     }
 }
 
@@ -112,3 +197,12 @@ Console.WriteLine($"UniYO ASP.NET Core backend on http://localhost:{port}");
 app.Run();
 
 public partial class Program { }
+
+
+
+
+
+
+
+
+
