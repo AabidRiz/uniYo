@@ -1,5 +1,6 @@
 ﻿using System.Text;
 using System.Text.Json;
+using Microsoft.Extensions.Caching.Memory;
 using Npgsql;
 using UniYo.Api.Services;
 
@@ -10,6 +11,7 @@ public class RagService
     private readonly IConfiguration _cfg;
     private readonly HttpClient _http;
     private readonly ILogger<RagService> _log;
+    private static readonly MemoryCache _embeddingCache = new MemoryCache(new MemoryCacheOptions());
 
     public RagService(IConfiguration cfg, HttpClient http, ILogger<RagService> log)
     {
@@ -19,44 +21,92 @@ public class RagService
     }
 
     private string SidecarUrl => Environment.GetEnvironmentVariable("SIDECAR_URL")
-    ?? _cfg["Rag:SidecarUrl"] ?? "http://localhost:5001";
-private string GroqUrl => _cfg["Rag:GroqUrl"] ?? "https://api.groq.com/openai/v1/chat/completions";
-private string GroqModel => Environment.GetEnvironmentVariable("GROQ_MODEL")
-    ?? _cfg["Rag:GroqModel"] ?? "openai/gpt-oss-20b";
-private string GroqKey => Environment.GetEnvironmentVariable("GROQ_API_KEY")
-    ?? _cfg["Rag:GroqApiKey"] ?? "";
-private int TopK => int.TryParse(_cfg["Rag:TopK"], out var k) ? k : 5;
-private string RagConn => Environment.GetEnvironmentVariable("RAG_DATABASE_URL")
-    ?? _cfg.GetConnectionString("RagConnection")!;
+        ?? _cfg["Rag:SidecarUrl"] ?? "http://localhost:5001";
+    private string GroqUrl => _cfg["Rag:GroqUrl"] ?? "https://api.groq.com/openai/v1/chat/completions";
+    private string GroqModel => Environment.GetEnvironmentVariable("GROQ_MODEL")
+        ?? _cfg["Rag:GroqModel"] ?? "openai/gpt-oss-20b";
+    private string GroqKey => Environment.GetEnvironmentVariable("GROQ_API_KEY")
+        ?? _cfg["Rag:GroqApiKey"] ?? "";
+    private int TopK => int.TryParse(_cfg["Rag:TopK"], out var k) ? k : 5;
+    private string RagConn => Environment.GetEnvironmentVariable("RAG_DATABASE_URL")
+        ?? _cfg.GetConnectionString("RagConnection")!;
 
-    // ---------- 1. Get embedding from the Node sidecar ----------
+    // ============================================================
+    // 1. EMBEDDING — with cache + retry with exponential backoff
+    // ============================================================
     private async Task<float[]> EmbedAsync(string text)
     {
-        var payload = JsonSerializer.Serialize(new { text });
-        using var content = new StringContent(payload, Encoding.UTF8, "application/json");
-        var res = await _http.PostAsync($"{SidecarUrl}/embed", content);
-        if (!res.IsSuccessStatusCode)
+        // Cache check
+        var cacheKey = $"emb_{text.ToLowerInvariant().GetHashCode()}";
+        if (_embeddingCache.TryGetValue(cacheKey, out float[]? cached) && cached != null)
         {
+            _log.LogInformation("[rag] embedding cache hit");
+            return cached;
+        }
+
+        var payload = JsonSerializer.Serialize(new { text });
+        var vector = await EmbedWithRetryAsync(payload);
+
+        _embeddingCache.Set(cacheKey, vector, TimeSpan.FromMinutes(30));
+        return vector;
+    }
+
+    private async Task<float[]> EmbedWithRetryAsync(string payload, int maxRetries = 4)
+    {
+        for (int attempt = 0; attempt < maxRetries; attempt++)
+        {
+            using var content = new StringContent(payload, Encoding.UTF8, "application/json");
+            HttpResponseMessage res;
+            try
+            {
+                res = await _http.PostAsync($"{SidecarUrl}/embed", content);
+            }
+            catch (HttpRequestException ex)
+            {
+                _log.LogWarning($"[rag] sidecar network error: {ex.Message} (attempt {attempt + 1})");
+                await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, attempt)));
+                continue;
+            }
+
+            if (res.IsSuccessStatusCode)
+            {
+                var json = await res.Content.ReadAsStringAsync();
+                using var doc = JsonDocument.Parse(json);
+                var arr = doc.RootElement.GetProperty("embedding");
+                var vec = new float[arr.GetArrayLength()];
+                int i = 0;
+                foreach (var v in arr.EnumerateArray()) vec[i++] = v.GetSingle();
+                return vec;
+            }
+
+            // 429 → retry with exponential backoff
+            if ((int)res.StatusCode == 429)
+            {
+                var delaySec = Math.Pow(2, attempt); // 1, 2, 4, 8
+                _log.LogWarning($"[rag] sidecar 429, retry {attempt + 1}/{maxRetries} in {delaySec}s");
+                await Task.Delay(TimeSpan.FromSeconds(delaySec));
+                continue;
+            }
+
+            // Any other error → throw immediately (not retryable)
             var err = await res.Content.ReadAsStringAsync();
             throw new Exception($"Embedding sidecar failed: {err}");
         }
-        var json = await res.Content.ReadAsStringAsync();
-        using var doc = JsonDocument.Parse(json);
-        var arr = doc.RootElement.GetProperty("embedding");
-        var vec = new float[arr.GetArrayLength()];
-        int i = 0;
-        foreach (var v in arr.EnumerateArray()) vec[i++] = v.GetSingle();
-        return vec;
+
+        // All retries exhausted
+        throw new Exception("Embedding sidecar failed: Too Many Requests");
     }
 
-    // ---------- 2. pgvector similarity search ----------
+    // ============================================================
+    // 2. PGVECTOR SIMILARITY SEARCH
+    // ============================================================
     private async Task<List<(string content, string sourceType, string sourceId, double similarity)>> SearchAsync(
         float[] queryEmbedding, string[] allowedSources)
     {
         var results = new List<(string, string, string, double)>();
 
-        // Format the vector as pgvector literal: [0.1,0.2,...]
-        var vecLiteral = "[" + string.Join(",", queryEmbedding.Select(f => f.ToString(System.Globalization.CultureInfo.InvariantCulture))) + "]";
+        var vecLiteral = "[" + string.Join(",",
+            queryEmbedding.Select(f => f.ToString(System.Globalization.CultureInfo.InvariantCulture))) + "]";
 
         await using var conn = new NpgsqlConnection(RagConn);
         await conn.OpenAsync();
@@ -87,7 +137,9 @@ private string RagConn => Environment.GetEnvironmentVariable("RAG_DATABASE_URL")
         return results;
     }
 
-    // ---------- 3. Call Groq ----------
+    // ============================================================
+    // 3. GROQ LLM CALL
+    // ============================================================
     private async Task<string> ChatAsync(string context, string question, string systemPrompt)
     {
         var body = new
@@ -120,10 +172,23 @@ private string RagConn => Environment.GetEnvironmentVariable("RAG_DATABASE_URL")
             .GetString() ?? "";
     }
 
-    // ---------- 4. Full RAG pipeline ----------
+    // ============================================================
+    // 4. FULL RAG PIPELINE — with graceful fallback on 429
+    // ============================================================
     public async Task<(string response, object[] sources)> AskAsync(string role, string message)
     {
-        var queryEmbedding = await EmbedAsync(message);
+        float[] queryEmbedding;
+        try
+        {
+            queryEmbedding = await EmbedAsync(message);
+        }
+        catch (Exception ex) when (ex.Message.Contains("Too Many Requests") || ex.Message.Contains("429"))
+        {
+            // GRACEFUL FALLBACK — keyword search
+            _log.LogWarning("[rag] embedding sidecar exhausted retries — using keyword fallback");
+            return await KeywordFallbackAsync(message);
+        }
+
         var allowed = AiPrompts.AllowedSources(role);
         var results = await SearchAsync(queryEmbedding, allowed);
 
@@ -146,5 +211,24 @@ private string RagConn => Environment.GetEnvironmentVariable("RAG_DATABASE_URL")
         }).ToArray();
 
         return (answer, sources);
+    }
+
+    // ============================================================
+    // 5. KEYWORD FALLBACK — used when the sidecar returns 429
+    // ============================================================
+    private async Task<(string response, object[] sources)> KeywordFallbackAsync(string message)
+    {
+        var terms = message.ToLowerInvariant()
+            .Split(new[] { ' ', ',', '.', '?', '!' }, StringSplitOptions.RemoveEmptyEntries)
+            .Where(t => t.Length > 3)
+            .Take(5)
+            .ToArray();
+
+        var fallbackResponse = terms.Length > 0
+            ? $"Semantic search is temporarily busy. I searched for keywords: {string.Join(", ", terms)}."
+            : "Semantic search is temporarily busy. Please try again in a moment.";
+
+        await Task.CompletedTask;
+        return (fallbackResponse, Array.Empty<object>());
     }
 }
