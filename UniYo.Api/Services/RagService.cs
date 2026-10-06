@@ -36,7 +36,6 @@ public class RagService
     // ============================================================
     private async Task<float[]> EmbedAsync(string text)
     {
-        // Cache check
         var cacheKey = $"emb_{text.ToLowerInvariant().GetHashCode()}";
         if (_embeddingCache.TryGetValue(cacheKey, out float[]? cached) && cached != null)
         {
@@ -79,21 +78,18 @@ public class RagService
                 return vec;
             }
 
-            // 429 → retry with exponential backoff
             if ((int)res.StatusCode == 429)
             {
-                var delaySec = Math.Pow(2, attempt); // 1, 2, 4, 8
+                var delaySec = Math.Pow(2, attempt);
                 _log.LogWarning($"[rag] sidecar 429, retry {attempt + 1}/{maxRetries} in {delaySec}s");
                 await Task.Delay(TimeSpan.FromSeconds(delaySec));
                 continue;
             }
 
-            // Any other error → throw immediately (not retryable)
             var err = await res.Content.ReadAsStringAsync();
             throw new Exception($"Embedding sidecar failed: {err}");
         }
 
-        // All retries exhausted
         throw new Exception("Embedding sidecar failed: Too Many Requests");
     }
 
@@ -146,7 +142,7 @@ public class RagService
         {
             model = GroqModel,
             temperature = 0.4,
-            max_tokens = 800,
+            max_tokens = 900,
             messages = new object[]
             {
                 new { role = "system", content = systemPrompt },
@@ -184,9 +180,8 @@ public class RagService
         }
         catch (Exception ex) when (ex.Message.Contains("Too Many Requests") || ex.Message.Contains("429"))
         {
-            // GRACEFUL FALLBACK — keyword search
-            _log.LogWarning("[rag] embedding sidecar exhausted retries — using keyword fallback");
-            return await KeywordFallbackAsync(message);
+            _log.LogWarning("[rag] embedding sidecar exhausted retries — using smart fallback");
+            return await SmartFallbackAsync(role, message);
         }
 
         var allowed = AiPrompts.AllowedSources(role);
@@ -214,21 +209,107 @@ public class RagService
     }
 
     // ============================================================
-    // 5. KEYWORD FALLBACK — used when the sidecar returns 429
+    // 5. SMART FALLBACK — detects intent (generate vs search)
     // ============================================================
-    private async Task<(string response, object[] sources)> KeywordFallbackAsync(string message)
+    private async Task<(string response, object[] sources)> SmartFallbackAsync(string role, string message)
     {
-        var terms = message.ToLowerInvariant()
-            .Split(new[] { ' ', ',', '.', '?', '!' }, StringSplitOptions.RemoveEmptyEntries)
+        var lower = message.ToLowerInvariant();
+
+        // Detect GENERATION intent
+        var generationKeywords = new[]
+        {
+            "design", "create", "write", "draft", "generate", "make",
+            "syllabus", "module", "outline", "plan", "draft", "compose",
+            "help me", "how do i", "how to", "explain", "summarize"
+        };
+        var isGeneration = generationKeywords.Any(k => lower.Contains(k));
+
+        if (isGeneration)
+        {
+            _log.LogInformation("[rag] generation intent detected — calling Groq directly");
+            try
+            {
+                var rolePrompt = AiPrompts.System(role);
+                var enhancedPrompt = rolePrompt + @"
+
+You are responding in a fallback mode where retrieval is not available. Provide a helpful, well-structured answer based on your general knowledge. If the request is to design a syllabus or module, structure it clearly with weeks/months, topics, learning outcomes, and assessments.";
+
+                var answer = await ChatAsync(
+                    context: "(no reference material — direct generation mode)",
+                    question: message,
+                    systemPrompt: enhancedPrompt
+                );
+
+                return (
+                    answer + "\n\n_(AI in direct generation mode — semantic search unavailable.)_",
+                    Array.Empty<object>()
+                );
+            }
+            catch (Exception ex)
+            {
+                _log.LogError($"[rag] direct generation failed: {ex.Message}");
+                return ("I couldn't generate that right now. Please try again in a moment.", Array.Empty<object>());
+            }
+        }
+
+        // Otherwise → SEARCH intent
+        var terms = lower
+            .Split(new[] { ' ', ',', '.', '?', '!', '\n' }, StringSplitOptions.RemoveEmptyEntries)
             .Where(t => t.Length > 3)
+            .Distinct()
             .Take(5)
             .ToArray();
 
-        var fallbackResponse = terms.Length > 0
-            ? $"Semantic search is temporarily busy. I searched for keywords: {string.Join(", ", terms)}."
-            : "Semantic search is temporarily busy. Please try again in a moment.";
+        if (terms.Length == 0)
+            return ("Please provide more specific keywords (at least 4 characters each).", Array.Empty<object>());
 
-        await Task.CompletedTask;
-        return (fallbackResponse, Array.Empty<object>());
+        var sources = new List<object>();
+        var lines = new List<string>();
+
+        try
+        {
+            await using var conn = new NpgsqlConnection(RagConn);
+            await conn.OpenAsync();
+
+            var whereClauses = string.Join(" OR ", terms.Select((_, i) => $"LOWER(content) LIKE @p{i}"));
+            var sql = $@"
+                SELECT source_type, source_id, content
+                FROM rag_documents
+                WHERE source_type IN ('project','post','internship','video','student_profile')
+                  AND ({whereClauses})
+                LIMIT 5";
+
+            await using var cmd = new NpgsqlCommand(sql, conn);
+            for (int i = 0; i < terms.Length; i++)
+                cmd.Parameters.AddWithValue($"p{i}", $"%{terms[i]}%");
+
+            await using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                var sourceType = reader.GetString(0);
+                var sourceId = reader.GetString(1);
+                var content = reader.GetString(2);
+                var preview = content.Length > 140 ? content.Substring(0, 140) + "..." : content;
+
+                sources.Add(new { type = sourceType, id = sourceId });
+                lines.Add($"• [{sourceType}] {preview}");
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.LogError($"[rag] keyword fallback DB error: {ex.Message}");
+            return ("Search is temporarily busy. Please try again in a moment.", Array.Empty<object>());
+        }
+
+        if (sources.Count == 0)
+            return (
+                $"No matches for: {string.Join(", ", terms)}. Try different keywords.",
+                Array.Empty<object>()
+            );
+
+        return (
+            $"Semantic search is busy — showing keyword matches:\n\n" + string.Join("\n", lines),
+            sources.ToArray()
+        );
     }
 }
