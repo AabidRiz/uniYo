@@ -6,7 +6,7 @@ import ToolsPanel from "./ToolsPanel";
 import ConfidenceBadge from "./ConfidenceBadge";
 import HandoffBanner from "./HandoffBanner";
 
-const API = "http://localhost:5000/api";
+import API from "../../api/config";
 
 export default function ProfessorPanel({ projectId, workflowId, setWorkflowId, onSuccess }) {
   const [answers, setAnswers] = useState({ domain: "", expertise: [], university: "any", formal: true });
@@ -211,3 +211,4 @@ export default function ProfessorPanel({ projectId, workflowId, setWorkflowId, o
     </div>
   );
 }
+

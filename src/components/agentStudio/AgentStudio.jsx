@@ -6,7 +6,7 @@ import ProfessorPanel from "./ProfessorPanel";
 import ValidatorPanel from "./ValidatorPanel";
 import WorkflowTimeline from "./WorkflowTimeline";
 
-const API = "http://localhost:5000/api";
+import API from "../../api/config";
 
 export default function AgentStudio() {
   const [activeTab, setActiveTab] = useState("collaborator");
@@ -208,5 +208,6 @@ export default function AgentStudio() {
     </div>
   );
 }
+
 
 

@@ -5,7 +5,7 @@ import ReasoningTrace from "./ReasoningTrace";
 import ToolsPanel from "./ToolsPanel";
 import ConfidenceBadge from "./ConfidenceBadge";
 
-const API = "http://localhost:5000/api";
+import API from "../../api/config";
 
 export default function CollaboratorPanel({ projectId, workflowId, setWorkflowId, onSuccess }) {
   const [answers, setAnswers] = useState({ challenge: "", skills: [], universities: "all" });
@@ -208,3 +208,4 @@ export default function CollaboratorPanel({ projectId, workflowId, setWorkflowId
     </div>
   );
 }
+

@@ -1,4 +1,5 @@
-import React, { useState, useRef } from 'react';
+﻿import React, { useState, useRef } from 'react';
+import API from "../../api/config";
 import {
   ThumbsUp, MessageSquare, Share2, Image as ImageIcon, Send,
   Sparkles, Paperclip, AtSign, X, Trash2, Edit3, Save
@@ -245,7 +246,7 @@ export default function FeedView({
               className="linkedin-btn-primary px-4 py-1.5 text-xs font-semibold flex items-center space-x-1 disabled:opacity-50"
             >
               <Send className="w-3.5 h-3.5" />
-              <span>{busy ? 'Posting…' : 'Post'}</span>
+              <span>{busy ? 'Postingâ€¦' : 'Post'}</span>
             </button>
           </div>
 
@@ -321,7 +322,7 @@ function PostCard({
     if (!editText.trim()) return;
     setSaving(true);
     try {
-      const res = await fetch(`http://localhost:5000/api/posts/${post.id}`, {
+      const res = await fetch(`${API}/posts/${post.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content: editText.trim() })
@@ -363,8 +364,8 @@ function PostCard({
               {post.author?.verified && <Badge type="verified" />}
             </div>
             <p className="text-[11px] text-slate-500">
-              {post.author?.university || 'Sri Lanka University'} • {timeAgo(post.createdAt)}
-              {editing && <span className="ml-2 italic text-blue-600">editing…</span>}
+              {post.author?.university || 'Sri Lanka University'} â€¢ {timeAgo(post.createdAt)}
+              {editing && <span className="ml-2 italic text-blue-600">editingâ€¦</span>}
             </p>
           </div>
         </div>
@@ -410,7 +411,7 @@ function PostCard({
               className="linkedin-btn-primary py-1.5 px-4 text-xs flex items-center disabled:opacity-50"
             >
               <Save className="w-3.5 h-3.5 mr-1" />
-              {saving ? 'Saving…' : 'Save'}
+              {saving ? 'Savingâ€¦' : 'Save'}
             </button>
           </div>
         </div>
@@ -530,7 +531,7 @@ function PostCard({
             <input
               value={commentDraft}
               onChange={e => setCommentDraft(e.target.value)}
-              placeholder="Write a comment…"
+              placeholder="Write a commentâ€¦"
               className="flex-1 bg-slate-100 rounded-full px-3 py-1.5 text-xs focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-500"
             />
             <button

@@ -5,7 +5,7 @@ import ReasoningTrace from "./ReasoningTrace";
 import ToolsPanel from "./ToolsPanel";
 import ConfidenceBadge from "./ConfidenceBadge";
 
-const API = "http://localhost:5000/api";
+import API from "../../api/config";
 
 export default function ValidatorPanel({ projectId, workflowId, setWorkflowId }) {
   const [running, setRunning] = useState(false);
@@ -180,3 +180,4 @@ export default function ValidatorPanel({ projectId, workflowId, setWorkflowId })
     </div>
   );
 }
+
