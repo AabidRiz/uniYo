@@ -21,7 +21,7 @@ export default function ProfAdvisedProjectsView({ currentUser, onOpenProject }) 
         <div className="flex items-center space-x-2 text-emerald-600 font-semibold text-xs mb-1">
           <Target className="w-4 h-4" /><span>Faculty Advisor</span>
         </div>
-        <h2 className="text-xl font-bold text-slate-900">Projects You Advise</h2>
+        <h2 className="text-xl font-bold text-slate-900">Advised Projects</h2>
         <p className="text-xs text-slate-500 mt-1">You have read-only access to tasks, meetings and repos. You can post in project chat.</p>
       </div>
 
