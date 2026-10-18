@@ -131,3 +131,4 @@ Return ONLY valid JSON: { ""endorsement"": ""..."" }";
         _log.LogInformation($"[Professor] workflow {workflowId} → {topProf.Prof.Name}, confidence {result.Confidence}");
     }
 }
+
