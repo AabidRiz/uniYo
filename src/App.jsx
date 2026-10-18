@@ -312,7 +312,7 @@ export default function App() {
       </main>
 
       <footer className="bg-white border-t border-slate-200 py-4 text-center text-xs text-slate-500">
-        © 2026 UniYO — Integrated Sri Lankan University Application Engine.
+        © 2026 UniYO — SE3090 Integrated Sri Lankan University Application Engine.
       </footer>
 
       <AIAssistantDrawer
@@ -323,3 +323,4 @@ export default function App() {
     </div>
   );
 }
+
