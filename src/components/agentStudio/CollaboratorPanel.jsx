@@ -7,8 +7,8 @@ import ConfidenceBadge from "./ConfidenceBadge";
 
 import API from "../../api/config";
 
-export default function CollaboratorPanel({ projectId, workflowId, setWorkflowId, onSuccess }) {
-  const [answers, setAnswers] = useState({ challenge: "", skills: [], universities: "all" });
+export default function CollaboratorPanel({ projectId, workflowId, setWorkflowId, sharedQuestionnaire, setSharedQuestionnaire, onSuccess }) {
+  const answers = sharedQuestionnaire; const setAnswers = (update) => setSharedQuestionnaire(typeof update === "function" ? update(sharedQuestionnaire) : update);
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState(null);
   const [steps, setSteps] = useState(null);
@@ -208,4 +208,5 @@ export default function CollaboratorPanel({ projectId, workflowId, setWorkflowId
     </div>
   );
 }
+
 

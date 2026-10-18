@@ -8,8 +8,8 @@ import HandoffBanner from "./HandoffBanner";
 
 import API from "../../api/config";
 
-export default function ProfessorPanel({ projectId, workflowId, setWorkflowId, onSuccess }) {
-  const [answers, setAnswers] = useState({ domain: "", expertise: [], university: "any", formal: true });
+export default function ProfessorPanel({ projectId, workflowId, setWorkflowId, sharedQuestionnaire, setSharedQuestionnaire, onSuccess }) {
+  const answers = sharedQuestionnaire; const setAnswers = (update) => setSharedQuestionnaire(typeof update === "function" ? update(sharedQuestionnaire) : update);
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState(null);
   const [steps, setSteps] = useState(null);
@@ -198,6 +198,23 @@ export default function ProfessorPanel({ projectId, workflowId, setWorkflowId, o
                   "{result.endorsement.endorsementDraft}"
                 </div>
               </div>
+              {result.endorsement.whyGood && (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+                  <div className="text-xs font-bold text-emerald-700 mb-2">Why This Professor Fits</div>
+                  <p className="text-xs text-slate-700 leading-relaxed">{result.endorsement.whyGood}</p>
+                </div>
+              )}
+              {result.endorsement.adviceAreas?.length > 0 && (
+                <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+                  <div className="text-xs font-bold text-purple-700 mb-2">Where They Can Advise</div>
+                  <ol className="list-decimal list-inside text-xs text-slate-700 space-y-2">
+                    {result.endorsement.adviceAreas.map((area, i) => (
+                      <li key={i} className="leading-relaxed">{area}</li>
+                    ))}
+                  </ol>
+                </div>
+              )}
+
             </div>
           )}
 
@@ -211,4 +228,8 @@ export default function ProfessorPanel({ projectId, workflowId, setWorkflowId, o
     </div>
   );
 }
+
+
+
+
 

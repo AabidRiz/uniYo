@@ -4,6 +4,8 @@ using UniYo.Api.Data;
 using UniYo.Api.Entities;
 using UniYo.Api.Services;
 
+Environment.SetEnvironmentVariable("GROQ_MODEL", "openai/gpt-oss-20b");
+
 var builder = WebApplication.CreateBuilder(args);
 
 var port = Environment.GetEnvironmentVariable("PORT") ?? "5000";
@@ -41,6 +43,8 @@ builder.Services.AddCors(options =>
     {
         policy.WithOrigins(
             "http://localhost:5173",
+            "http://uniyo.local:5173",
+            "http://www.uniyo.local:5173",
             "https://uniyo.vercel.app",
             "https://uniyo-eight.vercel.app",
             "https://uniyo-aabidriz.vercel.app"
@@ -197,6 +201,12 @@ Console.WriteLine($"UniYO ASP.NET Core backend on http://localhost:{port}");
 app.Run();
 
 public partial class Program { }
+
+
+
+
+
+
 
 
 

@@ -65,10 +65,26 @@ public class CollaboratorAgent
         result.ReasoningTrace.Add($"Detected {gaps.Count} skill gaps in candidate pool");
 
         // LLM call for plan — with a tactical personality
-        var systemPrompt = @"You are the Collaborator Agent for UniYO. You are DIRECT and TACTICAL.
-You break projects into concise steps. You do not use filler words.
+        var systemPrompt = @"You are the Collaborator Agent for UniYO. Create a DETAILED 150-200 word strategic plan.
+
 Return ONLY valid JSON:
-{ ""steps"": [""step1"",""step2"",""step3""], ""summary"": ""one-line tactical summary"" }";
+{
+  ""steps"": [
+    ""Detailed step 1 (2-3 full sentences explaining what, why, and how)"",
+    ""Detailed step 2 (2-3 full sentences)"",
+    ""Detailed step 3 (2-3 full sentences)"",
+    ""Detailed step 4 (2-3 full sentences)"",
+    ""Detailed step 5 (2-3 full sentences)""
+  ],
+  ""requiredSkills"": [""specific skills needed""],
+  ""gaps"": [""specific gaps to address""],
+  ""summary"": ""A comprehensive 150-200 word summary explaining the strategic approach, why this plan will succeed, and what risks exist.""
+}
+
+Requirements:
+- Each step MUST be 2-3 full sentences (30-40 words)
+- Summary MUST be 150-200 words
+- Reference the actual project - not generic steps";
 
         var userMsg = $"Project: {project.Title}\nDescription: {project.Description}\nRequired skills: {string.Join(", ", requiredSkills)}\nTop candidate matches: {string.Join(", ", scored.Take(3).Select(s => s.Student.Name))}";
 
@@ -120,3 +136,6 @@ Return ONLY valid JSON:
         _log.LogInformation($"[Collaborator] workflow {workflowId} → confidence {result.Confidence}");
     }
 }
+
+
+
