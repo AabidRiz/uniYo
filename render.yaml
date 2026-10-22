@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: uniyo-api
+    runtime: docker
+    dockerfilePath: ./UniYo.Api/Dockerfile
+    dockerContext: ./UniYo.Api
+    healthCheckPath: /api/health
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
